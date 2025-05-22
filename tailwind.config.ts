@@ -19,6 +19,9 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				sans: ['var(--font-sans)'],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -64,14 +67,15 @@ export default {
 					ring: 'hsl(var(--sidebar-ring))'
 				},
 				music: {
-					primary: '#1DB954',     // Spotify green
-					secondary: '#191414',   // Dark background
-					accent: '#FF5500',      // SoundCloud orange
-					highlight: '#1ED760',   // Bright highlight
+					primary: '#FF2D55',     // Apple Music red/pink
+					secondary: '#1C1C1E',   // Dark background
+					accent: '#FC3C89',      // Accent color
+					highlight: '#FF375F',   // Bright highlight
 					text: '#FFFFFF',
-					darkBg: '#121212',
-					cardBg: '#181818',
-					hover: '#282828',
+					darkBg: '#000000',
+					cardBg: '#1C1C1E',
+					hover: '#2C2C2E',
+					lightAccent: '#EF4444', // Light accent for gradients
 				},
 			},
 			borderRadius: {
