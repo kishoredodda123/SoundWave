@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,7 +62,17 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				music: {
+					primary: '#1DB954',     // Spotify green
+					secondary: '#191414',   // Dark background
+					accent: '#FF5500',      // SoundCloud orange
+					highlight: '#1ED760',   // Bright highlight
+					text: '#FFFFFF',
+					darkBg: '#121212',
+					cardBg: '#181818',
+					hover: '#282828',
+				},
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -84,11 +95,18 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'music-bar': {
+					'0%, 100%': { height: '0.75rem' },
+					'50%': { height: '2.5rem' },
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'music-bar-1': 'music-bar 0.9s linear infinite',
+				'music-bar-2': 'music-bar 0.8s linear infinite 0.2s',
+				'music-bar-3': 'music-bar 1.2s linear infinite 0.1s',
 			}
 		}
 	},
