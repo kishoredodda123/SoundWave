@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 
 // Types for music data
 export interface Track {
@@ -10,6 +11,7 @@ export interface Track {
   audioUrl: string;
   releaseDate?: string;
   genre?: string;
+  backblazeFileId?: string;
 }
 
 export interface Album {
@@ -30,6 +32,193 @@ export interface Playlist {
   trackCount: number;
   tracks: Track[];
 }
+
+// Function to transform Supabase music_files to Track objects
+const transformMusicFileToTrack = (file: any): Track => {
+  return {
+    id: file.id,
+    title: file.title,
+    artist: file.artist,
+    album: file.album || '',
+    duration: file.duration || 0,
+    cover: file.cover_url || 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
+    audioUrl: file.audio_url,
+    releaseDate: file.release_date,
+    genre: file.genre,
+    backblazeFileId: file.backblaze_file_id
+  };
+};
+
+// Function to get music from Supabase (which will be synced with Backblaze)
+const getMusicFromBackblaze = async (): Promise<Track[]> => {
+  try {
+    console.log('Getting music from Supabase...');
+    const { data, error } = await supabase
+      .from('music_files')
+      .select('*');
+    
+    if (error) {
+      console.error('Error fetching music files:', error);
+      // Return mock data as fallback during development
+      return mockTracks;
+    }
+    
+    if (data && data.length > 0) {
+      return data.map(transformMusicFileToTrack);
+    } else {
+      console.log('No music files found, returning mock data');
+      return mockTracks;
+    }
+  } catch (error) {
+    console.error('Error in getMusicFromBackblaze:', error);
+    return mockTracks;
+  }
+};
+
+// Function to get featured playlists from Supabase
+const getFeaturedPlaylists = async (): Promise<Playlist[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('playlists')
+      .select(`
+        id,
+        title,
+        description,
+        cover_url,
+        playlist_tracks (
+          position,
+          music_files (*)
+        )
+      `);
+
+    if (error) {
+      console.error('Error fetching playlists:', error);
+      return mockPlaylists;
+    }
+
+    if (data && data.length > 0) {
+      return data.map((playlist: any) => {
+        const tracks = playlist.playlist_tracks
+          .sort((a: any, b: any) => a.position - b.position)
+          .map((item: any) => transformMusicFileToTrack(item.music_files));
+        
+        return {
+          id: playlist.id,
+          title: playlist.title,
+          description: playlist.description || '',
+          cover: playlist.cover_url || 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
+          trackCount: tracks.length,
+          tracks: tracks
+        };
+      });
+    } else {
+      return mockPlaylists;
+    }
+  } catch (error) {
+    console.error('Error in getFeaturedPlaylists:', error);
+    return mockPlaylists;
+  }
+};
+
+// Function to get trending tracks
+const getTrendingTracks = async (): Promise<Track[]> => {
+  try {
+    // In a real app, you might have a view or algorithm to determine trending
+    // For now, we'll just get the most recently added tracks
+    const { data, error } = await supabase
+      .from('music_files')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5);
+    
+    if (error) {
+      console.error('Error fetching trending tracks:', error);
+      return mockTracks.slice(0, 5);
+    }
+    
+    if (data && data.length > 0) {
+      return data.map(transformMusicFileToTrack);
+    } else {
+      return mockTracks.slice(0, 5);
+    }
+  } catch (error) {
+    console.error('Error in getTrendingTracks:', error);
+    return mockTracks.slice(0, 5);
+  }
+};
+
+// Function to get recommended tracks based on user preferences
+const getRecommendedTracks = async (): Promise<Track[]> => {
+  try {
+    // In a real app with user preferences, you'd use a more sophisticated algorithm
+    // For now, we'll just get some random tracks
+    const { data, error } = await supabase
+      .from('music_files')
+      .select('*')
+      .limit(5);
+    
+    if (error) {
+      console.error('Error fetching recommended tracks:', error);
+      return mockTracks.slice(3, 6);
+    }
+    
+    if (data && data.length > 0) {
+      return data.map(transformMusicFileToTrack);
+    } else {
+      return mockTracks.slice(3, 6);
+    }
+  } catch (error) {
+    console.error('Error in getRecommendedTracks:', error);
+    return mockTracks.slice(3, 6);
+  }
+};
+
+// Function to search for tracks
+const searchTracks = async (query: string): Promise<Track[]> => {
+  if (!query) return [];
+  
+  try {
+    const normalizedQuery = query.toLowerCase();
+    
+    const { data, error } = await supabase
+      .from('music_files')
+      .select('*')
+      .or(`title.ilike.%${normalizedQuery}%,artist.ilike.%${normalizedQuery}%,album.ilike.%${normalizedQuery}%`)
+      .limit(10);
+    
+    if (error) {
+      console.error('Error searching tracks:', error);
+      return mockTracks.filter(
+        track => 
+          track.title.toLowerCase().includes(normalizedQuery) ||
+          track.artist.toLowerCase().includes(normalizedQuery) ||
+          track.album.toLowerCase().includes(normalizedQuery)
+      );
+    }
+    
+    if (data && data.length > 0) {
+      return data.map(transformMusicFileToTrack);
+    } else {
+      // If no results in DB, fall back to mock data
+      return mockTracks.filter(
+        track => 
+          track.title.toLowerCase().includes(normalizedQuery) ||
+          track.artist.toLowerCase().includes(normalizedQuery) ||
+          track.album.toLowerCase().includes(normalizedQuery)
+      );
+    }
+  } catch (error) {
+    console.error('Error in searchTracks:', error);
+    // Fall back to mock data filtering
+    const normalizedQuery = query.toLowerCase();
+    return mockTracks.filter(
+      track => 
+        track.title.toLowerCase().includes(normalizedQuery) ||
+        track.artist.toLowerCase().includes(normalizedQuery) ||
+        track.album.toLowerCase().includes(normalizedQuery)
+    );
+  }
+};
 
 // Mock data for initial testing
 const mockTracks: Track[] = [
@@ -129,43 +318,16 @@ const mockPlaylists: Playlist[] = [
   },
 ];
 
-// This would be integrated with your Backblaze service
-const getMusicFromBackblaze = async (): Promise<Track[]> => {
-  // This is where you'd fetch from Backblaze
-  // For now, return mock data
-  console.log('Getting music from Backblaze (mock)');
-  return mockTracks;
-};
-
-// Function to get featured playlists
-const getFeaturedPlaylists = async (): Promise<Playlist[]> => {
-  // This would fetch from your backend/storage in the future
-  return mockPlaylists;
-};
-
-// Function to get trending tracks
-const getTrendingTracks = async (): Promise<Track[]> => {
-  // This would be based on some algorithm/data in the future
-  return mockTracks.slice(0, 5);
-};
-
-// Function to get recommended tracks based on user preferences
-const getRecommendedTracks = async (): Promise<Track[]> => {
-  // This would be personalized in the future
-  return mockTracks.slice(3, 6);
-};
-
-// Function to search for tracks
-const searchTracks = async (query: string): Promise<Track[]> => {
-  if (!query) return [];
-  
-  const normalizedQuery = query.toLowerCase();
-  return mockTracks.filter(
-    track => 
-      track.title.toLowerCase().includes(normalizedQuery) ||
-      track.artist.toLowerCase().includes(normalizedQuery) ||
-      track.album.toLowerCase().includes(normalizedQuery)
-  );
+// Function to sync music from Backblaze to Supabase
+// This would typically be implemented as a server-side function
+const syncBackblazeToSupabase = async () => {
+  console.log('This function would sync Backblaze to Supabase');
+  // In a real implementation, this would:
+  // 1. Connect to Backblaze API
+  // 2. Get a list of music files
+  // 3. Compare with existing entries in Supabase
+  // 4. Insert new files from Backblaze into Supabase
+  // 5. Update metadata as needed
 };
 
 export const musicService = {
@@ -174,4 +336,5 @@ export const musicService = {
   getTrendingTracks,
   getRecommendedTracks,
   searchTracks,
+  syncBackblazeToSupabase,
 };
