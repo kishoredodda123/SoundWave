@@ -9,6 +9,8 @@ import Search from "./pages/Search";
 import Library from "./pages/Library";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import LikedSongs from "./pages/LikedSongs";
+import CreatePlaylist from "./pages/CreatePlaylist";
 
 // Create query client for data fetching
 const queryClient = new QueryClient({
@@ -32,6 +34,8 @@ const App = () => (
             <Route path="/search" element={<Search />} />
             <Route path="/library" element={<Library />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/liked-songs" element={<LikedSongs />} />
+            <Route path="/create-playlist" element={<CreatePlaylist />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

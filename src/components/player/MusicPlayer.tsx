@@ -71,7 +71,7 @@ const MusicPlayer = () => {
               <SkipBack className="h-5 w-5" />
             </button>
             <button 
-              className="bg-white rounded-full p-2 text-black hover:scale-105 transition"
+              className="bg-red-600 rounded-full p-2 text-white hover:scale-105 transition"
               onClick={() => setIsPlaying(!isPlaying)}
             >
               {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
@@ -110,15 +110,6 @@ const MusicPlayer = () => {
           </div>
         </div>
       </div>
-      
-      {/* Music equalizer animation (visible when playing) */}
-      {isPlaying && (
-        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex space-x-1">
-          <div className="w-1 bg-music-primary rounded-full animate-music-bar-1"></div>
-          <div className="w-1 bg-music-primary rounded-full animate-music-bar-2"></div>
-          <div className="w-1 bg-music-primary rounded-full animate-music-bar-3"></div>
-        </div>
-      )}
     </div>
   );
 };

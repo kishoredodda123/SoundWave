@@ -1,6 +1,6 @@
 
 import { Link } from 'react-router-dom';
-import { Home, Search, ListMusic, Library, PlusCircle, Heart, Music } from 'lucide-react';
+import { Home, Search, Library, PlusCircle, Heart, Music } from 'lucide-react';
 
 const Sidebar = () => {
   return (
@@ -35,25 +35,14 @@ const Sidebar = () => {
         </nav>
 
         <div className="mt-8 pt-8 border-t border-gray-800">
-          <button className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors mb-4">
+          <Link to="/create-playlist" className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors mb-4">
             <PlusCircle className="h-5 w-5 mr-3" />
             Create Playlist
-          </button>
-          <button className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors">
+          </Link>
+          <Link to="/liked-songs" className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors">
             <Heart className="h-5 w-5 mr-3" />
             Liked Songs
-          </button>
-        </div>
-
-        <div className="mt-8 pt-8 border-t border-gray-800">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Your Playlists</h3>
-          <ul className="space-y-3">
-            {['Chill Vibes', 'Workout Mix', 'Focus Time', 'Party Hits', 'Road Trip'].map((playlist) => (
-              <li key={playlist} className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">
-                {playlist}
-              </li>
-            ))}
-          </ul>
+          </Link>
         </div>
       </div>
     </aside>
