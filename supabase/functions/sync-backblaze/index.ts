@@ -7,6 +7,13 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const BACKBLAZE_APP_KEY_ID = Deno.env.get("BACKBLAZE_APP_KEY_ID") || "";
 const BACKBLAZE_APP_KEY = Deno.env.get("BACKBLAZE_APP_KEY") || "";
 const BACKBLAZE_BUCKET_ID = Deno.env.get("BACKBLAZE_BUCKET_ID") || "";
+const BACKBLAZE_BUCKET_NAME = Deno.env.get("BACKBLAZE_BUCKET_NAME") || "";
+
+// Define CORS headers for browser access
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 // Create a Supabase client
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -17,6 +24,7 @@ async function authorizeBackblaze() {
     const authUrl = "https://api.backblazeb2.com/b2api/v2/b2_authorize_account";
     const credentials = btoa(`${BACKBLAZE_APP_KEY_ID}:${BACKBLAZE_APP_KEY}`);
     
+    console.log("Authorizing with Backblaze B2...");
     const response = await fetch(authUrl, {
       method: "GET",
       headers: {
@@ -25,10 +33,13 @@ async function authorizeBackblaze() {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to authorize with Backblaze B2: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Failed to authorize with Backblaze B2: ${response.status} ${response.statusText} - ${errorText}`);
     }
     
-    return await response.json();
+    const authData = await response.json();
+    console.log("Authorization successful");
+    return authData;
   } catch (error) {
     console.error("Error authorizing with Backblaze:", error);
     throw error;
@@ -36,10 +47,11 @@ async function authorizeBackblaze() {
 }
 
 // Function to list files in a Backblaze B2 bucket
-async function listBackblazeFiles(authData: any) {
+async function listBackblazeFiles(authData) {
   try {
     const apiUrl = `${authData.apiUrl}/b2api/v2/b2_list_file_names`;
     
+    console.log(`Listing files in bucket ${BACKBLAZE_BUCKET_NAME} (${BACKBLAZE_BUCKET_ID})...`);
     const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
@@ -53,10 +65,13 @@ async function listBackblazeFiles(authData: any) {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to list files: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Failed to list files: ${response.status} ${response.statusText} - ${errorText}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    console.log(`Found ${data.files.length} files in bucket`);
+    return data;
   } catch (error) {
     console.error("Error listing Backblaze files:", error);
     throw error;
@@ -64,9 +79,9 @@ async function listBackblazeFiles(authData: any) {
 }
 
 // Function to process music files and extract metadata
-function extractMetadataFromFileName(fileName: string) {
+function extractMetadataFromFileName(fileName) {
   // In a real implementation, this would parse file names or ID3 tags
-  // For now, we'll extract basic info from a filename pattern like "Artist - Title.mp3"
+  // For now, we'll extract basic info from a filename pattern
   try {
     // Remove file extension
     const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
@@ -96,13 +111,20 @@ function extractMetadataFromFileName(fileName: string) {
 }
 
 // Function to generate a download URL for a Backblaze file
-function generateDownloadUrl(authData: any, fileName: string) {
-  return `${authData.downloadUrl}/file/${BACKBLAZE_BUCKET_ID}/${encodeURIComponent(fileName)}`;
+function generateDownloadUrl(authData, fileName) {
+  if (!authData || !authData.downloadUrl) {
+    throw new Error("Authorization data is missing downloadUrl");
+  }
+  
+  const encodedFileName = encodeURIComponent(fileName);
+  return `${authData.downloadUrl}/file/${BACKBLAZE_BUCKET_NAME}/${encodedFileName}`;
 }
 
 // Main synchronization function
 async function syncBackblazeToSupabase() {
   try {
+    console.log("Starting synchronization process...");
+    
     // Step 1: Authorize with Backblaze
     const authData = await authorizeBackblaze();
     
@@ -110,15 +132,30 @@ async function syncBackblazeToSupabase() {
     const filesData = await listBackblazeFiles(authData);
     
     // Step 3: Process each file
-    const syncResults = [];
+    const syncResults = {
+      processed: filesData.files.length,
+      added: 0,
+      updated: 0,
+      skipped: 0,
+      errors: 0,
+      details: []
+    };
     
     for (const file of filesData.files) {
       // Only process audio files
       if (!file.fileName.match(/\.(mp3|wav|ogg|flac|m4a)$/i)) {
+        syncResults.skipped++;
+        syncResults.details.push({
+          fileName: file.fileName,
+          status: 'skipped',
+          reason: 'Not an audio file'
+        });
         continue;
       }
       
       try {
+        console.log(`Processing file: ${file.fileName}`);
+        
         // Extract metadata from filename
         const metadata = extractMetadataFromFileName(file.fileName);
         
@@ -126,42 +163,73 @@ async function syncBackblazeToSupabase() {
         const audioUrl = generateDownloadUrl(authData, file.fileName);
         
         // Check if file already exists in database
-        const { data: existingFiles } = await supabase
+        const { data: existingFiles, error: selectError } = await supabase
           .from('music_files')
           .select('*')
           .eq('backblaze_file_id', file.fileId);
         
-        if (existingFiles && existingFiles.length > 0) {
-          // File already exists, update if needed
-          continue;
+        if (selectError) {
+          throw selectError;
         }
         
-        // Insert new file
-        const { data, error } = await supabase
-          .from('music_files')
-          .insert([
-            {
+        if (existingFiles && existingFiles.length > 0) {
+          // File already exists, update if needed
+          const { error: updateError } = await supabase
+            .from('music_files')
+            .update({
               title: metadata.title,
               artist: metadata.artist,
               audio_url: audioUrl,
-              backblaze_file_id: file.fileId,
               backblaze_file_name: file.fileName,
-              file_size: file.size
-            }
-          ]);
-        
-        if (error) {
-          throw error;
+              file_size: file.size,
+              updated_at: new Date().toISOString()
+            })
+            .eq('backblaze_file_id', file.fileId);
+            
+          if (updateError) {
+            throw updateError;
+          }
+          
+          syncResults.updated++;
+          syncResults.details.push({
+            fileName: file.fileName,
+            status: 'updated',
+            metadata
+          });
+          
+          console.log(`Updated existing file: ${file.fileName}`);
+        } else {
+          // Insert new file
+          const { error: insertError } = await supabase
+            .from('music_files')
+            .insert([
+              {
+                title: metadata.title,
+                artist: metadata.artist,
+                audio_url: audioUrl,
+                backblaze_file_id: file.fileId,
+                backblaze_file_name: file.fileName,
+                file_size: file.size
+              }
+            ]);
+          
+          if (insertError) {
+            throw insertError;
+          }
+          
+          syncResults.added++;
+          syncResults.details.push({
+            fileName: file.fileName,
+            status: 'added',
+            metadata
+          });
+          
+          console.log(`Added new file: ${file.fileName}`);
         }
-        
-        syncResults.push({
-          fileName: file.fileName,
-          status: 'added',
-          data
-        });
       } catch (error) {
         console.error(`Error processing file ${file.fileName}:`, error);
-        syncResults.push({
+        syncResults.errors++;
+        syncResults.details.push({
           fileName: file.fileName,
           status: 'error',
           error: error.message
@@ -169,10 +237,12 @@ async function syncBackblazeToSupabase() {
       }
     }
     
+    console.log("Synchronization completed successfully");
+    console.log(`Processed: ${syncResults.processed}, Added: ${syncResults.added}, Updated: ${syncResults.updated}, Skipped: ${syncResults.skipped}, Errors: ${syncResults.errors}`);
+    
     return {
       success: true,
-      processed: filesData.files.length,
-      results: syncResults
+      ...syncResults
     };
   } catch (error) {
     console.error("Error in syncBackblazeToSupabase:", error);
@@ -185,29 +255,58 @@ async function syncBackblazeToSupabase() {
 
 // Main handler for the edge function
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: corsHeaders,
+      status: 204
+    });
+  }
+  
   try {
     if (req.method === "POST") {
       // Manual trigger via POST
+      console.log("POST request received, starting sync process");
       const result = await syncBackblazeToSupabase();
+      
       return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          ...corsHeaders,
+          "Content-Type": "application/json" 
+        },
         status: 200,
       });
     } else if (req.method === "GET") {
       // For testing/verification
-      return new Response(JSON.stringify({ status: "Backblaze sync function is running" }), {
-        headers: { "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ 
+        status: "Backblaze sync function is running",
+        config: {
+          backblaze_bucket: BACKBLAZE_BUCKET_NAME,
+          backblaze_bucket_id: BACKBLAZE_BUCKET_ID
+        }
+      }), {
+        headers: { 
+          ...corsHeaders,
+          "Content-Type": "application/json" 
+        },
         status: 200,
       });
     } else {
       return new Response(JSON.stringify({ error: "Method not allowed" }), {
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          ...corsHeaders,
+          "Content-Type": "application/json" 
+        },
         status: 405,
       });
     }
   } catch (error) {
+    console.error("Error handling request:", error);
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        ...corsHeaders,
+        "Content-Type": "application/json" 
+      },
       status: 500,
     });
   }

@@ -55,7 +55,8 @@ const getMusicFromBackblaze = async (): Promise<Track[]> => {
     console.log('Getting music from Supabase...');
     const { data, error } = await supabase
       .from('music_files')
-      .select('*');
+      .select('*')
+      .order('created_at', { ascending: false });
     
     if (error) {
       console.error('Error fetching music files:', error);
@@ -64,9 +65,10 @@ const getMusicFromBackblaze = async (): Promise<Track[]> => {
     }
     
     if (data && data.length > 0) {
+      console.log(`Found ${data.length} music files in database`);
       return data.map(transformMusicFileToTrack);
     } else {
-      console.log('No music files found, returning mock data');
+      console.log('No music files found in database, returning mock data');
       return mockTracks;
     }
   } catch (error) {
@@ -319,15 +321,31 @@ const mockPlaylists: Playlist[] = [
 ];
 
 // Function to sync music from Backblaze to Supabase
-// This would typically be implemented as a server-side function
 const syncBackblazeToSupabase = async () => {
-  console.log('This function would sync Backblaze to Supabase');
-  // In a real implementation, this would:
-  // 1. Connect to Backblaze API
-  // 2. Get a list of music files
-  // 3. Compare with existing entries in Supabase
-  // 4. Insert new files from Backblaze into Supabase
-  // 5. Update metadata as needed
+  try {
+    console.log('Syncing Backblaze to Supabase...');
+    
+    // Call the Edge Function to perform the sync
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-backblaze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error syncing music: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('Sync result:', result);
+    
+    return result;
+  } catch (error) {
+    console.error('Error in syncBackblazeToSupabase:', error);
+    throw error;
+  }
 };
 
 export const musicService = {
