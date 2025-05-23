@@ -5,6 +5,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import TrackCard from '@/components/music/TrackCard';
 import { Track, musicService } from '@/services/musicService';
 import { toast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
 
 const LikedSongs = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -33,25 +34,13 @@ const LikedSongs = () => {
   const handleSyncMusic = async () => {
     try {
       setLoading(true);
-      // Call your backend to sync music files
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-backblaze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error syncing music: ${response.status}`);
-      }
-      
-      const result = await response.json();
+      // Use the musicService function to sync music
+      const result = await musicService.syncBackblazeToSupabase();
       
       if (result.success) {
         toast({
           title: "Sync Complete",
-          description: `Added ${result.added} new tracks, updated ${result.updated} existing tracks.`,
+          description: `Added ${result.added || 0} new tracks, updated ${result.updated || 0} existing tracks.`,
         });
         
         // Refresh the track list
@@ -83,13 +72,13 @@ const LikedSongs = () => {
             <h1 className="text-3xl font-bold">Liked Songs</h1>
           </div>
           <div className="mt-4 sm:mt-0">
-            <button
+            <Button
               onClick={handleSyncMusic}
               disabled={loading}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
             >
               {loading ? "Loading..." : "Sync Music"}
-            </button>
+            </Button>
           </div>
         </div>
         

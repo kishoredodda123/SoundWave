@@ -325,23 +325,21 @@ const syncBackblazeToSupabase = async () => {
   try {
     console.log('Syncing Backblaze to Supabase...');
     
-    // Call the Edge Function to perform the sync
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-backblaze`, {
+    // Use the Supabase client to invoke the function directly
+    const { data, error } = await supabase.functions.invoke('sync-backblaze', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
       }
     });
     
-    if (!response.ok) {
-      throw new Error(`Error syncing music: ${response.status}`);
+    if (error) {
+      throw new Error(`Error syncing music: ${error.message}`);
     }
     
-    const result = await response.json();
-    console.log('Sync result:', result);
+    console.log('Sync result:', data);
     
-    return result;
+    return data;
   } catch (error) {
     console.error('Error in syncBackblazeToSupabase:', error);
     throw error;

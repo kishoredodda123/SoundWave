@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,24 +41,14 @@ const Admin = () => {
     setSyncResults(null);
     
     try {
-      // In a real implementation, this would call the Supabase Edge Function
-      // For now, we'll just simulate it with our placeholder function
-      await musicService.syncBackblazeToSupabase();
+      // Call the syncBackblazeToSupabase function
+      const result = await musicService.syncBackblazeToSupabase();
       
-      // Simulate a successful sync
-      const mockResults = {
-        success: true,
-        processed: 5,
-        added: 2,
-        updated: 1,
-        skipped: 2
-      };
-      
-      setSyncResults(mockResults);
+      setSyncResults(result);
       
       toast({
         title: "Sync Complete",
-        description: `Processed ${mockResults.processed} files from Backblaze.`,
+        description: `Processed ${result.processed || 0} files from Backblaze.`,
       });
       
       // Refresh the file list
@@ -68,7 +57,7 @@ const Admin = () => {
       console.error('Error syncing with Backblaze:', error);
       toast({
         title: "Sync Failed",
-        description: "Failed to sync with Backblaze. See console for details.",
+        description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
       
@@ -82,9 +71,9 @@ const Admin = () => {
   };
 
   // Load music files when component mounts
-  useState(() => {
+  useEffect(() => {
     loadMusicFiles();
-  });
+  }, []);
 
   return (
     <MainLayout>
