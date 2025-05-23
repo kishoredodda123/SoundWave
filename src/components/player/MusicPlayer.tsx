@@ -9,7 +9,7 @@ const MusicPlayer = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const duration = 263; // In seconds (4:23)
 
-  // For demo purposes - show equalizer when playing
+  // For demo purposes
   const [activeTrack, setActiveTrack] = useState({
     title: 'Starboy',
     artist: 'The Weeknd, Daft Punk',

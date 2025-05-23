@@ -1,6 +1,6 @@
 
 import { Link } from 'react-router-dom';
-import { Home, Search, Library, PlusCircle, Heart, Music } from 'lucide-react';
+import { Home, Search, PlusCircle, Heart, Music } from 'lucide-react';
 
 const Sidebar = () => {
   return (
@@ -23,12 +23,6 @@ const Sidebar = () => {
               <Link to="/search" className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors">
                 <Search className="h-5 w-5 mr-3" />
                 Search
-              </Link>
-            </li>
-            <li>
-              <Link to="/library" className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors">
-                <Library className="h-5 w-5 mr-3" />
-                Your Library
               </Link>
             </li>
           </ul>
