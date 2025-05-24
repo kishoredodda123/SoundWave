@@ -4,10 +4,11 @@ import { Track } from '@/services/musicService';
 
 interface TrackCardProps {
   track: Track;
-  onPlay?: () => void;
+  onPlay?: (track: Track, playlist?: Track[]) => void;
+  playlist?: Track[];
 }
 
-const TrackCard = ({ track, onPlay }: TrackCardProps) => {
+const TrackCard = ({ track, onPlay, playlist }: TrackCardProps) => {
   // Format duration to MM:SS
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -15,10 +16,16 @@ const TrackCard = ({ track, onPlay }: TrackCardProps) => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  const handlePlay = () => {
+    if (onPlay) {
+      onPlay(track, playlist);
+    }
+  };
+
   return (
     <div 
       className="group flex items-center p-3 rounded-md hover:bg-music-hover transition-colors cursor-pointer"
-      onClick={onPlay}
+      onClick={handlePlay}
     >
       <div className="relative flex-shrink-0 mr-4">
         <img 

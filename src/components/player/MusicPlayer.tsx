@@ -1,21 +1,39 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
+import { Track } from '@/services/musicService';
 
-const MusicPlayer = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
+interface MusicPlayerProps {
+  currentTrack?: Track;
+  isPlaying: boolean;
+  onPlayPause: () => void;
+  onNext?: () => void;
+  onPrevious?: () => void;
+}
+
+const MusicPlayer = ({ 
+  currentTrack, 
+  isPlaying, 
+  onPlayPause, 
+  onNext, 
+  onPrevious 
+}: MusicPlayerProps) => {
   const [volume, setVolume] = useState(70);
   const [currentTime, setCurrentTime] = useState(0);
-  const duration = 263; // In seconds (4:23)
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
-  // For demo purposes
-  const [activeTrack, setActiveTrack] = useState({
+  // Default track for demo when no track is selected
+  const displayTrack = currentTrack || {
+    id: 'demo',
     title: 'Starboy',
     artist: 'The Weeknd, Daft Punk',
     album: 'Starboy',
     cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=150&h=150',
-  });
+    audioUrl: '',
+    duration: 263
+  };
 
   // Format time in MM:SS
   const formatTime = (seconds: number) => {
@@ -24,59 +42,108 @@ const MusicPlayer = () => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Update time indicator for demo
+  // Handle audio element events
   useEffect(() => {
-    let interval: number | undefined;
-    
-    if (isPlaying) {
-      interval = window.setInterval(() => {
-        setCurrentTime((prevTime) => {
-          if (prevTime >= duration) {
-            setIsPlaying(false);
-            return 0;
-          }
-          return prevTime + 1;
-        });
-      }, 1000);
-    }
-    
-    return () => {
-      if (interval) clearInterval(interval);
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleDurationChange = () => setDuration(audio.duration || 0);
+    const handleEnded = () => {
+      setCurrentTime(0);
+      if (onNext) onNext();
     };
-  }, [isPlaying, duration]);
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('durationchange', handleDurationChange);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('durationchange', handleDurationChange);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [onNext]);
+
+  // Control play/pause
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (isPlaying && currentTrack?.audioUrl) {
+      audio.play().catch(console.error);
+    } else {
+      audio.pause();
+    }
+  }, [isPlaying, currentTrack]);
+
+  // Update volume
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.volume = volume / 100;
+    }
+  }, [volume]);
+
+  // Handle seek
+  const handleSeek = (values: number[]) => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.currentTime = values[0];
+      setCurrentTime(values[0]);
+    }
+  };
 
   // Volume icon based on level
   const VolumeIcon = volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-4 py-3">
+      {/* Hidden audio element for actual playback */}
+      {currentTrack?.audioUrl && (
+        <audio
+          ref={audioRef}
+          src={currentTrack.audioUrl}
+          preload="metadata"
+        />
+      )}
+      
       <div className="flex flex-col md:flex-row items-center">
         {/* Track Info - Mobile: Top, Desktop: Left */}
         <div className="flex items-center w-full md:w-1/4 mb-3 md:mb-0">
           <img 
-            src={activeTrack.cover}
-            alt={`${activeTrack.title} album art`}
+            src={displayTrack.cover}
+            alt={`${displayTrack.title} album art`}
             className="h-12 w-12 object-cover rounded mr-3"
           />
           <div className="flex-1 min-w-0">
-            <h4 className="text-sm font-medium text-white truncate">{activeTrack.title}</h4>
-            <p className="text-xs text-gray-400 truncate">{activeTrack.artist}</p>
+            <h4 className="text-sm font-medium text-white truncate">{displayTrack.title}</h4>
+            <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
           </div>
         </div>
         
         {/* Player Controls - Mobile: Middle, Desktop: Center */}
         <div className="flex flex-col w-full md:w-1/2 md:px-4">
           <div className="flex justify-center items-center space-x-4 mb-3">
-            <button className="text-gray-400 hover:text-white">
+            <button 
+              className="text-gray-400 hover:text-white disabled:opacity-50"
+              onClick={onPrevious}
+              disabled={!onPrevious}
+            >
               <SkipBack className="h-5 w-5" />
             </button>
             <button 
-              className="bg-red-600 rounded-full p-2 text-white hover:scale-105 transition"
-              onClick={() => setIsPlaying(!isPlaying)}
+              className="bg-red-600 rounded-full p-2 text-white hover:scale-105 transition disabled:opacity-50"
+              onClick={onPlayPause}
+              disabled={!currentTrack?.audioUrl}
             >
               {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </button>
-            <button className="text-gray-400 hover:text-white">
+            <button 
+              className="text-gray-400 hover:text-white disabled:opacity-50"
+              onClick={onNext}
+              disabled={!onNext}
+            >
               <SkipForward className="h-5 w-5" />
             </button>
           </div>
@@ -86,13 +153,14 @@ const MusicPlayer = () => {
             <div className="flex-1">
               <Slider 
                 value={[currentTime]} 
-                max={duration}
+                max={duration || displayTrack.duration}
                 step={1}
-                onValueChange={(values) => setCurrentTime(values[0])}
+                onValueChange={handleSeek}
                 className="cursor-pointer"
+                disabled={!currentTrack?.audioUrl}
               />
             </div>
-            <span>{formatTime(duration)}</span>
+            <span>{formatTime(duration || displayTrack.duration)}</span>
           </div>
         </div>
         

@@ -6,10 +6,12 @@ import TrackCard from '@/components/music/TrackCard';
 import { Track, musicService } from '@/services/musicService';
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
+import { useMusicPlayer } from '@/hooks/useMusicPlayer';
 
 const LikedSongs = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const { playTrack } = useMusicPlayer();
 
   useEffect(() => {
     const fetchTracks = async () => {
@@ -34,7 +36,6 @@ const LikedSongs = () => {
   const handleSyncMusic = async () => {
     try {
       setLoading(true);
-      // Use the musicService function to sync music
       const result = await musicService.syncBackblazeToSupabase();
       
       if (result.success) {
@@ -97,7 +98,12 @@ const LikedSongs = () => {
         ) : tracks.length > 0 ? (
           <div className="mt-8 space-y-1">
             {tracks.map((track) => (
-              <TrackCard key={track.id} track={track} />
+              <TrackCard 
+                key={track.id} 
+                track={track} 
+                onPlay={playTrack}
+                playlist={tracks}
+              />
             ))}
           </div>
         ) : (

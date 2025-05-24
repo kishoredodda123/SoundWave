@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react';
 import { Track } from '@/services/musicService';
 import { musicService } from '@/services/musicService';
 import TrackCard from '@/components/music/TrackCard';
+import { useMusicPlayer } from '@/hooks/useMusicPlayer';
 
 const TrendingSection = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const { playTrack } = useMusicPlayer();
 
   useEffect(() => {
     const fetchTracks = async () => {
@@ -42,7 +44,12 @@ const TrendingSection = () => {
   return (
     <div className="space-y-1 mt-4">
       {tracks.map((track) => (
-        <TrackCard key={track.id} track={track} />
+        <TrackCard 
+          key={track.id} 
+          track={track} 
+          onPlay={playTrack}
+          playlist={tracks}
+        />
       ))}
     </div>
   );

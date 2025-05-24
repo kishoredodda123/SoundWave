@@ -1,9 +1,9 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 // Use the updated Backblaze credentials from Supabase secrets
 const BACKBLAZE_APP_KEY_ID = "005ef3018aedce30000000002";
@@ -16,6 +16,11 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Create a Supabase client with service role key to bypass RLS
+const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false }
+});
 
 // Create a Supabase client
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -170,8 +175,8 @@ async function syncBackblazeToSupabase() {
         // Generate download URL
         const audioUrl = generateDownloadUrl(authData, file.fileName);
         
-        // Check if file already exists in database
-        const { data: existingFiles, error: selectError } = await supabase
+        // Check if file already exists in database using service role client
+        const { data: existingFiles, error: selectError } = await supabaseService
           .from('music_files')
           .select('*')
           .eq('backblaze_file_id', file.fileId);
@@ -181,8 +186,8 @@ async function syncBackblazeToSupabase() {
         }
         
         if (existingFiles && existingFiles.length > 0) {
-          // File already exists, update if needed
-          const { error: updateError } = await supabase
+          // File already exists, update if needed using service role client
+          const { error: updateError } = await supabaseService
             .from('music_files')
             .update({
               title: metadata.title,
@@ -207,8 +212,8 @@ async function syncBackblazeToSupabase() {
           
           console.log(`Updated existing file: ${file.fileName}`);
         } else {
-          // Insert new file
-          const { error: insertError } = await supabase
+          // Insert new file using service role client
+          const { error: insertError } = await supabaseService
             .from('music_files')
             .insert([
               {
