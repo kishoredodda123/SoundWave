@@ -35,14 +35,24 @@ export interface Playlist {
 
 // Function to transform Supabase music_files to Track objects
 const transformMusicFileToTrack = (file: any): Track => {
+  // Ensure audio URL is properly formatted for web playback
+  let audioUrl = file.audio_url;
+  
+  // Add CORS-friendly parameters if it's a Backblaze URL
+  if (audioUrl && audioUrl.includes('backblazeb2.com')) {
+    // Add cache-busting and ensure proper headers
+    const separator = audioUrl.includes('?') ? '&' : '?';
+    audioUrl = `${audioUrl}${separator}t=${Date.now()}`;
+  }
+
   return {
     id: file.id,
-    title: file.title,
-    artist: file.artist,
-    album: file.album || '',
+    title: file.title || 'Unknown Title',
+    artist: file.artist || 'Unknown Artist',
+    album: file.album || 'Unknown Album',
     duration: file.duration || 0,
     cover: file.cover_url || 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    audioUrl: file.audio_url,
+    audioUrl: audioUrl,
     releaseDate: file.release_date,
     genre: file.genre,
     backblazeFileId: file.backblaze_file_id
@@ -56,6 +66,7 @@ const getMusicFromBackblaze = async (): Promise<Track[]> => {
     const { data, error } = await supabase
       .from('music_files')
       .select('*')
+      .not('audio_url', 'is', null)
       .order('created_at', { ascending: false });
     
     if (error) {
@@ -66,7 +77,9 @@ const getMusicFromBackblaze = async (): Promise<Track[]> => {
     
     if (data && data.length > 0) {
       console.log(`Found ${data.length} music files in database`);
-      return data.map(transformMusicFileToTrack);
+      const tracks = data.map(transformMusicFileToTrack);
+      console.log('Transformed tracks:', tracks.map(t => ({ title: t.title, audioUrl: t.audioUrl })));
+      return tracks;
     } else {
       console.log('No music files found in database, returning mock data');
       return mockTracks;
@@ -130,6 +143,7 @@ const getTrendingTracks = async (): Promise<Track[]> => {
     const { data, error } = await supabase
       .from('music_files')
       .select('*')
+      .not('audio_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(5);
     
@@ -157,6 +171,7 @@ const getRecommendedTracks = async (): Promise<Track[]> => {
     const { data, error } = await supabase
       .from('music_files')
       .select('*')
+      .not('audio_url', 'is', null)
       .limit(5);
     
     if (error) {
@@ -185,6 +200,7 @@ const searchTracks = async (query: string): Promise<Track[]> => {
     const { data, error } = await supabase
       .from('music_files')
       .select('*')
+      .not('audio_url', 'is', null)
       .or(`title.ilike.%${normalizedQuery}%,artist.ilike.%${normalizedQuery}%,album.ilike.%${normalizedQuery}%`)
       .limit(10);
     
@@ -325,7 +341,6 @@ const syncBackblazeToSupabase = async () => {
   try {
     console.log('Syncing Backblaze to Supabase...');
     
-    // Use the Supabase client to invoke the function directly
     const { data, error } = await supabase.functions.invoke('sync-backblaze', {
       method: 'POST',
       headers: {

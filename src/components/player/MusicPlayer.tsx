@@ -24,21 +24,23 @@ const MusicPlayer = ({
   const [duration, setDuration] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  const [canPlay, setCanPlay] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Default track for demo when no track is selected
   const displayTrack = currentTrack || {
     id: 'demo',
-    title: 'Starboy',
-    artist: 'The Weeknd, Daft Punk',
-    album: 'Starboy',
+    title: 'Select a song to play',
+    artist: 'No artist',
+    album: 'No album',
     cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=150&h=150',
     audioUrl: '',
-    duration: 263
+    duration: 0
   };
 
   // Format time in MM:SS
   const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
@@ -49,70 +51,149 @@ const MusicPlayer = ({
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleTimeUpdate = () => {
+      if (!isNaN(audio.currentTime)) {
+        setCurrentTime(audio.currentTime);
+      }
+    };
+
     const handleDurationChange = () => {
-      setDuration(audio.duration || 0);
-      console.log('Audio duration loaded:', audio.duration);
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+        console.log('Audio duration loaded:', audio.duration);
+      }
     };
-    const handleEnded = () => {
-      setCurrentTime(0);
-      if (onNext) onNext();
-    };
-    const handleLoadStart = () => {
-      setAudioLoading(true);
-      setAudioError(false);
-      console.log('Audio loading started');
-    };
+
     const handleCanPlay = () => {
       setAudioLoading(false);
-      console.log('Audio can play');
+      setCanPlay(true);
+      setAudioError(false);
+      console.log('Audio can play, duration:', audio.duration);
+      
+      // Try to get duration if not set
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
     };
-    const handleError = (e) => {
+
+    const handleCanPlayThrough = () => {
       setAudioLoading(false);
-      setAudioError(true);
-      console.error('Audio error:', e);
+      setCanPlay(true);
+      console.log('Audio can play through');
     };
+
     const handleLoadedMetadata = () => {
       console.log('Audio metadata loaded:', {
         duration: audio.duration,
-        src: audio.src
+        src: audio.src,
+        readyState: audio.readyState
+      });
+      
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
+
+    const handleLoadedData = () => {
+      console.log('Audio data loaded');
+      setAudioLoading(false);
+    };
+
+    const handleEnded = () => {
+      setCurrentTime(0);
+      setCanPlay(false);
+      if (onNext) onNext();
+    };
+
+    const handleLoadStart = () => {
+      setAudioLoading(true);
+      setAudioError(false);
+      setCanPlay(false);
+      console.log('Audio loading started for:', audio.src);
+    };
+
+    const handleError = (e: Event) => {
+      setAudioLoading(false);
+      setAudioError(true);
+      setCanPlay(false);
+      const errorEvent = e as ErrorEvent;
+      console.error('Audio error:', {
+        error: errorEvent,
+        audioError: audio.error,
+        src: audio.src,
+        networkState: audio.networkState,
+        readyState: audio.readyState
+      });
+    };
+
+    const handleProgress = () => {
+      console.log('Audio progress:', {
+        buffered: audio.buffered.length > 0 ? audio.buffered.end(0) : 0,
+        duration: audio.duration
       });
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('canplaythrough', handleCanPlayThrough);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('loadeddata', handleLoadedData);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('loadstart', handleLoadStart);
-    audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('error', handleError);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('progress', handleProgress);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('durationchange', handleDurationChange);
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('canplaythrough', handleCanPlayThrough);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('loadeddata', handleLoadedData);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadstart', handleLoadStart);
-      audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('error', handleError);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('progress', handleProgress);
     };
   }, [onNext]);
+
+  // Reset states when track changes
+  useEffect(() => {
+    if (currentTrack) {
+      setCurrentTime(0);
+      setDuration(0);
+      setAudioError(false);
+      setCanPlay(false);
+      console.log('Track changed to:', currentTrack.title, 'URL:', currentTrack.audioUrl);
+    }
+  }, [currentTrack?.id]);
 
   // Control play/pause
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack?.audioUrl) return;
 
-    if (isPlaying) {
+    if (isPlaying && canPlay) {
       console.log('Attempting to play audio:', currentTrack.audioUrl);
-      audio.play().catch((error) => {
-        console.error('Failed to play audio:', error);
-        setAudioError(true);
-      });
-    } else {
+      const playPromise = audio.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            console.log('Audio playback started successfully');
+          })
+          .catch((error) => {
+            console.error('Failed to play audio:', error);
+            setAudioError(true);
+            // Try to reload the audio element
+            audio.load();
+          });
+      }
+    } else if (!isPlaying) {
       audio.pause();
     }
-  }, [isPlaying, currentTrack]);
+  }, [isPlaying, canPlay, currentTrack]);
 
   // Update volume
   useEffect(() => {
@@ -125,14 +206,18 @@ const MusicPlayer = ({
   // Handle seek
   const handleSeek = (values: number[]) => {
     const audio = audioRef.current;
-    if (audio && !isNaN(values[0])) {
-      audio.currentTime = values[0];
-      setCurrentTime(values[0]);
+    if (audio && canPlay && !isNaN(values[0]) && duration > 0) {
+      const newTime = Math.min(values[0], duration);
+      audio.currentTime = newTime;
+      setCurrentTime(newTime);
     }
   };
 
   // Volume icon based on level
   const VolumeIcon = volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
+
+  // Get effective duration (use track duration if audio duration not available)
+  const effectiveDuration = duration > 0 ? duration : (currentTrack?.duration || 0);
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-4 py-3">
@@ -143,6 +228,9 @@ const MusicPlayer = ({
           src={currentTrack.audioUrl}
           preload="metadata"
           crossOrigin="anonymous"
+          playsInline
+          onLoadStart={() => console.log('Audio element load start')}
+          onError={(e) => console.error('Audio element error:', e)}
         />
       )}
       
@@ -157,8 +245,11 @@ const MusicPlayer = ({
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-medium text-white truncate">{displayTrack.title}</h4>
             <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
-            {audioLoading && <p className="text-xs text-blue-400">Loading...</p>}
-            {audioError && <p className="text-xs text-red-400">Audio Error</p>}
+            {audioLoading && <p className="text-xs text-blue-400">Loading audio...</p>}
+            {audioError && <p className="text-xs text-red-400">Playback error - check file format</p>}
+            {!canPlay && currentTrack?.audioUrl && !audioLoading && !audioError && (
+              <p className="text-xs text-yellow-400">Buffering...</p>
+            )}
           </div>
         </div>
         
@@ -195,14 +286,14 @@ const MusicPlayer = ({
             <div className="flex-1">
               <Slider 
                 value={[currentTime]} 
-                max={duration || displayTrack.duration}
+                max={effectiveDuration}
                 step={1}
                 onValueChange={handleSeek}
                 className="cursor-pointer"
-                disabled={!currentTrack?.audioUrl || audioLoading}
+                disabled={!canPlay || effectiveDuration === 0}
               />
             </div>
-            <span>{formatTime(duration || displayTrack.duration)}</span>
+            <span>{formatTime(effectiveDuration)}</span>
           </div>
         </div>
         
