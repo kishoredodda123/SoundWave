@@ -4,10 +4,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
-const BACKBLAZE_APP_KEY_ID = Deno.env.get("BACKBLAZE_APP_KEY_ID") || "";
-const BACKBLAZE_APP_KEY = Deno.env.get("BACKBLAZE_APP_KEY") || "";
-const BACKBLAZE_BUCKET_ID = Deno.env.get("BACKBLAZE_BUCKET_ID") || "";
-const BACKBLAZE_BUCKET_NAME = Deno.env.get("BACKBLAZE_BUCKET_NAME") || "";
+
+// Use the updated Backblaze credentials from Supabase secrets
+const BACKBLAZE_APP_KEY_ID = "005ef3018aedce30000000002";
+const BACKBLAZE_APP_KEY = "K0057ZHWh10HSaUAggG4bKeOtOLJG6E";
+const BACKBLAZE_BUCKET_ID = "0edfd3f0f1b8fa7e9d6c0e13";
+const BACKBLAZE_BUCKET_NAME = "Music-web";
 
 // Define CORS headers for browser access
 const corsHeaders = {
@@ -25,6 +27,8 @@ async function authorizeBackblaze() {
     const credentials = btoa(`${BACKBLAZE_APP_KEY_ID}:${BACKBLAZE_APP_KEY}`);
     
     console.log("Authorizing with Backblaze B2...");
+    console.log("Using App Key ID:", BACKBLAZE_APP_KEY_ID);
+    
     const response = await fetch(authUrl, {
       method: "GET",
       headers: {
@@ -34,11 +38,15 @@ async function authorizeBackblaze() {
     
     if (!response.ok) {
       const errorText = await response.text();
+      console.error("Authorization failed with status:", response.status);
+      console.error("Error response:", errorText);
       throw new Error(`Failed to authorize with Backblaze B2: ${response.status} ${response.statusText} - ${errorText}`);
     }
     
     const authData = await response.json();
     console.log("Authorization successful");
+    console.log("API URL:", authData.apiUrl);
+    console.log("Download URL:", authData.downloadUrl);
     return authData;
   } catch (error) {
     console.error("Error authorizing with Backblaze:", error);
@@ -66,6 +74,8 @@ async function listBackblazeFiles(authData) {
     
     if (!response.ok) {
       const errorText = await response.text();
+      console.error("List files failed with status:", response.status);
+      console.error("Error response:", errorText);
       throw new Error(`Failed to list files: ${response.status} ${response.statusText} - ${errorText}`);
     }
     
@@ -80,8 +90,6 @@ async function listBackblazeFiles(authData) {
 
 // Function to process music files and extract metadata
 function extractMetadataFromFileName(fileName) {
-  // In a real implementation, this would parse file names or ID3 tags
-  // For now, we'll extract basic info from a filename pattern
   try {
     // Remove file extension
     const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
@@ -282,7 +290,8 @@ serve(async (req) => {
         status: "Backblaze sync function is running",
         config: {
           backblaze_bucket: BACKBLAZE_BUCKET_NAME,
-          backblaze_bucket_id: BACKBLAZE_BUCKET_ID
+          backblaze_bucket_id: BACKBLAZE_BUCKET_ID,
+          backblaze_app_key_id: BACKBLAZE_APP_KEY_ID
         }
       }), {
         headers: { 
