@@ -70,7 +70,6 @@ const MusicPlayer = ({
       setAudioError(false);
       console.log('Audio can play, duration:', audio.duration);
       
-      // Try to get duration if not set
       if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
         setDuration(audio.duration);
       }
@@ -116,9 +115,8 @@ const MusicPlayer = ({
       setAudioLoading(false);
       setAudioError(true);
       setCanPlay(false);
-      const errorEvent = e as ErrorEvent;
       console.error('Audio error:', {
-        error: errorEvent,
+        error: e,
         audioError: audio.error,
         src: audio.src,
         networkState: audio.networkState,
@@ -127,10 +125,14 @@ const MusicPlayer = ({
     };
 
     const handleProgress = () => {
-      console.log('Audio progress:', {
-        buffered: audio.buffered.length > 0 ? audio.buffered.end(0) : 0,
-        duration: audio.duration
-      });
+      if (audio.buffered.length > 0) {
+        const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
+        const duration = audio.duration;
+        if (duration > 0) {
+          const bufferedPercent = (bufferedEnd / duration) * 100;
+          console.log(`Audio buffered: ${bufferedPercent.toFixed(1)}%`);
+        }
+      }
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
@@ -165,7 +167,7 @@ const MusicPlayer = ({
       setDuration(0);
       setAudioError(false);
       setCanPlay(false);
-      console.log('Track changed to:', currentTrack.title, 'URL:', currentTrack.audioUrl);
+      console.log('Track changed to:', currentTrack.title, 'Streaming URL:', currentTrack.audioUrl);
     }
   }, [currentTrack?.id]);
 
@@ -175,19 +177,17 @@ const MusicPlayer = ({
     if (!audio || !currentTrack?.audioUrl) return;
 
     if (isPlaying && canPlay) {
-      console.log('Attempting to play audio:', currentTrack.audioUrl);
+      console.log('Attempting to play streaming audio:', currentTrack.audioUrl);
       const playPromise = audio.play();
       
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
-            console.log('Audio playback started successfully');
+            console.log('Streaming audio playback started successfully');
           })
           .catch((error) => {
-            console.error('Failed to play audio:', error);
+            console.error('Failed to play streaming audio:', error);
             setAudioError(true);
-            // Try to reload the audio element
-            audio.load();
           });
       }
     } else if (!isPlaying) {
@@ -216,12 +216,12 @@ const MusicPlayer = ({
   // Volume icon based on level
   const VolumeIcon = volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
 
-  // Get effective duration (use track duration if audio duration not available)
+  // Get effective duration
   const effectiveDuration = duration > 0 ? duration : (currentTrack?.duration || 0);
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-4 py-3">
-      {/* Hidden audio element for actual playback */}
+      {/* Audio element for streaming playback */}
       {currentTrack?.audioUrl && (
         <audio
           ref={audioRef}
@@ -229,13 +229,13 @@ const MusicPlayer = ({
           preload="metadata"
           crossOrigin="anonymous"
           playsInline
-          onLoadStart={() => console.log('Audio element load start')}
-          onError={(e) => console.error('Audio element error:', e)}
+          onLoadStart={() => console.log('Streaming audio element load start')}
+          onError={(e) => console.error('Streaming audio element error:', e)}
         />
       )}
       
       <div className="flex flex-col md:flex-row items-center">
-        {/* Track Info - Mobile: Top, Desktop: Left */}
+        {/* Track Info */}
         <div className="flex items-center w-full md:w-1/4 mb-3 md:mb-0">
           <img 
             src={displayTrack.cover}
@@ -245,10 +245,10 @@ const MusicPlayer = ({
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-medium text-white truncate">{displayTrack.title}</h4>
             <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
-            {audioLoading && <p className="text-xs text-blue-400">Loading audio...</p>}
-            {audioError && <p className="text-xs text-red-400">Playback error - check file format</p>}
+            {audioLoading && <p className="text-xs text-blue-400">Loading audio stream...</p>}
+            {audioError && <p className="text-xs text-red-400">Streaming error - check connection</p>}
             {!canPlay && currentTrack?.audioUrl && !audioLoading && !audioError && (
-              <p className="text-xs text-yellow-400">Buffering...</p>
+              <p className="text-xs text-yellow-400">Buffering stream...</p>
             )}
           </div>
         </div>

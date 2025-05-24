@@ -35,14 +35,16 @@ export interface Playlist {
 
 // Function to transform Supabase music_files to Track objects
 const transformMusicFileToTrack = (file: any): Track => {
-  // Ensure audio URL is properly formatted for web playback
-  let audioUrl = file.audio_url;
+  // Generate streaming URL through our edge function
+  let audioUrl = '';
   
-  // Add CORS-friendly parameters if it's a Backblaze URL
-  if (audioUrl && audioUrl.includes('backblazeb2.com')) {
-    // Add cache-busting and ensure proper headers
-    const separator = audioUrl.includes('?') ? '&' : '?';
-    audioUrl = `${audioUrl}${separator}t=${Date.now()}`;
+  if (file.backblaze_file_name) {
+    // Use our streaming endpoint for private Backblaze files
+    const supabaseUrl = 'https://xfedtaajlodjzwphkenq.supabase.co';
+    audioUrl = `${supabaseUrl}/functions/v1/stream-audio?file=${encodeURIComponent(file.backblaze_file_name)}`;
+  } else if (file.audio_url) {
+    // Fallback to direct URL if available
+    audioUrl = file.audio_url;
   }
 
   return {
