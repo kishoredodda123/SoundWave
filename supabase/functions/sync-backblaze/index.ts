@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
@@ -123,6 +124,36 @@ function extractMetadataFromFileName(fileName) {
   }
 }
 
+// Function to check if a file is an audio file (improved detection)
+function isAudioFile(fileName) {
+  const audioExtensions = [
+    '.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.wma', '.opus', '.3gp', '.amr'
+  ];
+  
+  const lowerFileName = fileName.toLowerCase();
+  
+  // Check for explicit extensions
+  const hasAudioExtension = audioExtensions.some(ext => lowerFileName.endsWith(ext));
+  
+  // Also check for files without extensions that might be audio
+  const hasNoExtension = !lowerFileName.includes('.');
+  
+  // If it has no extension, we'll assume it might be audio and try to process it
+  return hasAudioExtension || hasNoExtension;
+}
+
+// Function to estimate duration for audio files (basic estimation)
+function estimateAudioDuration(fileName, fileSize) {
+  // Basic estimation: assume average bitrate of 128 kbps for MP3
+  // This is a rough estimate and won't be accurate for all files
+  const averageBitrateKbps = 128;
+  const fileSizeInBits = fileSize * 8;
+  const durationInSeconds = Math.floor(fileSizeInBits / (averageBitrateKbps * 1000));
+  
+  // Return a reasonable duration (between 30 seconds and 10 minutes for most songs)
+  return Math.max(30, Math.min(durationInSeconds, 600));
+}
+
 // Function to generate a download URL for a Backblaze file
 function generateDownloadUrl(authData, fileName) {
   if (!authData || !authData.downloadUrl) {
@@ -155,25 +186,32 @@ async function syncBackblazeToSupabase() {
     };
     
     for (const file of filesData.files) {
-      // Only process audio files
-      if (!file.fileName.match(/\.(mp3|wav|ogg|flac|m4a)$/i)) {
-        syncResults.skipped++;
-        syncResults.details.push({
-          fileName: file.fileName,
-          status: 'skipped',
-          reason: 'Not an audio file'
-        });
-        continue;
-      }
-      
       try {
         console.log(`Processing file: ${file.fileName}`);
+        
+        // Check if it's an audio file (improved detection)
+        if (!isAudioFile(file.fileName)) {
+          syncResults.skipped++;
+          syncResults.details.push({
+            fileName: file.fileName,
+            status: 'skipped',
+            reason: 'Not recognized as an audio file'
+          });
+          console.log(`Skipped ${file.fileName}: Not recognized as audio file`);
+          continue;
+        }
         
         // Extract metadata from filename
         const metadata = extractMetadataFromFileName(file.fileName);
         
         // Generate download URL
         const audioUrl = generateDownloadUrl(authData, file.fileName);
+        
+        // Estimate duration based on file size
+        const estimatedDuration = estimateAudioDuration(file.fileName, file.size || 0);
+        
+        console.log(`Audio URL: ${audioUrl}`);
+        console.log(`Estimated duration: ${estimatedDuration} seconds`);
         
         // Check if file already exists in database using service role client
         const { data: existingFiles, error: selectError } = await supabaseService
@@ -195,6 +233,7 @@ async function syncBackblazeToSupabase() {
               audio_url: audioUrl,
               backblaze_file_name: file.fileName,
               file_size: file.size,
+              duration: estimatedDuration,
               updated_at: new Date().toISOString()
             })
             .eq('backblaze_file_id', file.fileId);
@@ -207,7 +246,9 @@ async function syncBackblazeToSupabase() {
           syncResults.details.push({
             fileName: file.fileName,
             status: 'updated',
-            metadata
+            metadata,
+            audioUrl,
+            duration: estimatedDuration
           });
           
           console.log(`Updated existing file: ${file.fileName}`);
@@ -222,7 +263,11 @@ async function syncBackblazeToSupabase() {
                 audio_url: audioUrl,
                 backblaze_file_id: file.fileId,
                 backblaze_file_name: file.fileName,
-                file_size: file.size
+                file_size: file.size,
+                duration: estimatedDuration,
+                album: 'Unknown Album',
+                genre: 'Unknown',
+                cover_url: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300'
               }
             ]);
           
@@ -234,7 +279,9 @@ async function syncBackblazeToSupabase() {
           syncResults.details.push({
             fileName: file.fileName,
             status: 'added',
-            metadata
+            metadata,
+            audioUrl,
+            duration: estimatedDuration
           });
           
           console.log(`Added new file: ${file.fileName}`);

@@ -22,6 +22,8 @@ const MusicPlayer = ({
   const [volume, setVolume] = useState(70);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [audioError, setAudioError] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Default track for demo when no track is selected
@@ -48,30 +50,65 @@ const MusicPlayer = ({
     if (!audio) return;
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handleDurationChange = () => setDuration(audio.duration || 0);
+    const handleDurationChange = () => {
+      setDuration(audio.duration || 0);
+      console.log('Audio duration loaded:', audio.duration);
+    };
     const handleEnded = () => {
       setCurrentTime(0);
       if (onNext) onNext();
+    };
+    const handleLoadStart = () => {
+      setAudioLoading(true);
+      setAudioError(false);
+      console.log('Audio loading started');
+    };
+    const handleCanPlay = () => {
+      setAudioLoading(false);
+      console.log('Audio can play');
+    };
+    const handleError = (e) => {
+      setAudioLoading(false);
+      setAudioError(true);
+      console.error('Audio error:', e);
+    };
+    const handleLoadedMetadata = () => {
+      console.log('Audio metadata loaded:', {
+        duration: audio.duration,
+        src: audio.src
+      });
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('loadstart', handleLoadStart);
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('error', handleError);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('loadstart', handleLoadStart);
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('error', handleError);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
   }, [onNext]);
 
   // Control play/pause
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !currentTrack?.audioUrl) return;
 
-    if (isPlaying && currentTrack?.audioUrl) {
-      audio.play().catch(console.error);
+    if (isPlaying) {
+      console.log('Attempting to play audio:', currentTrack.audioUrl);
+      audio.play().catch((error) => {
+        console.error('Failed to play audio:', error);
+        setAudioError(true);
+      });
     } else {
       audio.pause();
     }
@@ -88,7 +125,7 @@ const MusicPlayer = ({
   // Handle seek
   const handleSeek = (values: number[]) => {
     const audio = audioRef.current;
-    if (audio) {
+    if (audio && !isNaN(values[0])) {
       audio.currentTime = values[0];
       setCurrentTime(values[0]);
     }
@@ -105,6 +142,7 @@ const MusicPlayer = ({
           ref={audioRef}
           src={currentTrack.audioUrl}
           preload="metadata"
+          crossOrigin="anonymous"
         />
       )}
       
@@ -119,6 +157,8 @@ const MusicPlayer = ({
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-medium text-white truncate">{displayTrack.title}</h4>
             <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
+            {audioLoading && <p className="text-xs text-blue-400">Loading...</p>}
+            {audioError && <p className="text-xs text-red-400">Audio Error</p>}
           </div>
         </div>
         
@@ -133,9 +173,11 @@ const MusicPlayer = ({
               <SkipBack className="h-5 w-5" />
             </button>
             <button 
-              className="bg-red-600 rounded-full p-2 text-white hover:scale-105 transition disabled:opacity-50"
+              className={`bg-red-600 rounded-full p-2 text-white hover:scale-105 transition disabled:opacity-50 ${
+                audioLoading ? 'animate-pulse' : ''
+              }`}
               onClick={onPlayPause}
-              disabled={!currentTrack?.audioUrl}
+              disabled={!currentTrack?.audioUrl || audioLoading}
             >
               {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </button>
@@ -157,7 +199,7 @@ const MusicPlayer = ({
                 step={1}
                 onValueChange={handleSeek}
                 className="cursor-pointer"
-                disabled={!currentTrack?.audioUrl}
+                disabled={!currentTrack?.audioUrl || audioLoading}
               />
             </div>
             <span>{formatTime(duration || displayTrack.duration)}</span>
