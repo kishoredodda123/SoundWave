@@ -35,15 +35,16 @@ export interface Playlist {
 
 // Function to transform Supabase music_files to Track objects
 const transformMusicFileToTrack = (file: any): Track => {
-  // Generate streaming URL through our edge function
+  // Generate streaming URL through our edge function for private Backblaze files
   let audioUrl = '';
   
   if (file.backblaze_file_name) {
-    // Use our streaming endpoint for private Backblaze files
+    // Use our secure streaming endpoint for private Backblaze files
     const supabaseUrl = 'https://xfedtaajlodjzwphkenq.supabase.co';
     audioUrl = `${supabaseUrl}/functions/v1/stream-audio?file=${encodeURIComponent(file.backblaze_file_name)}`;
+    console.log(`Generated streaming URL for ${file.title}: ${audioUrl}`);
   } else if (file.audio_url) {
-    // Fallback to direct URL if available
+    // Fallback to direct URL if available (for public files)
     audioUrl = file.audio_url;
   }
 
@@ -68,7 +69,6 @@ const getMusicFromBackblaze = async (): Promise<Track[]> => {
     const { data, error } = await supabase
       .from('music_files')
       .select('*')
-      .not('audio_url', 'is', null)
       .order('created_at', { ascending: false });
     
     if (error) {
@@ -80,7 +80,10 @@ const getMusicFromBackblaze = async (): Promise<Track[]> => {
     if (data && data.length > 0) {
       console.log(`Found ${data.length} music files in database`);
       const tracks = data.map(transformMusicFileToTrack);
-      console.log('Transformed tracks:', tracks.map(t => ({ title: t.title, audioUrl: t.audioUrl })));
+      console.log('Transformed tracks with streaming URLs:', tracks.map(t => ({ 
+        title: t.title, 
+        audioUrl: t.audioUrl 
+      })));
       return tracks;
     } else {
       console.log('No music files found in database, returning mock data');
@@ -145,7 +148,6 @@ const getTrendingTracks = async (): Promise<Track[]> => {
     const { data, error } = await supabase
       .from('music_files')
       .select('*')
-      .not('audio_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(5);
     
@@ -173,7 +175,6 @@ const getRecommendedTracks = async (): Promise<Track[]> => {
     const { data, error } = await supabase
       .from('music_files')
       .select('*')
-      .not('audio_url', 'is', null)
       .limit(5);
     
     if (error) {
@@ -202,7 +203,6 @@ const searchTracks = async (query: string): Promise<Track[]> => {
     const { data, error } = await supabase
       .from('music_files')
       .select('*')
-      .not('audio_url', 'is', null)
       .or(`title.ilike.%${normalizedQuery}%,artist.ilike.%${normalizedQuery}%,album.ilike.%${normalizedQuery}%`)
       .limit(10);
     

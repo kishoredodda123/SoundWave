@@ -135,6 +135,25 @@ const MusicPlayer = ({
       }
     };
 
+    const handleWaiting = () => {
+      console.log('Audio is waiting for more data');
+      setAudioLoading(true);
+    };
+
+    const handlePlaying = () => {
+      console.log('Audio started playing');
+      setAudioLoading(false);
+    };
+
+    const handleStalled = () => {
+      console.log('Audio download stalled');
+      setAudioLoading(true);
+    };
+
+    const handleSuspend = () => {
+      console.log('Audio loading suspended');
+    };
+
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('canplay', handleCanPlay);
@@ -145,6 +164,10 @@ const MusicPlayer = ({
     audio.addEventListener('loadstart', handleLoadStart);
     audio.addEventListener('error', handleError);
     audio.addEventListener('progress', handleProgress);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('playing', handlePlaying);
+    audio.addEventListener('stalled', handleStalled);
+    audio.addEventListener('suspend', handleSuspend);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
@@ -157,6 +180,10 @@ const MusicPlayer = ({
       audio.removeEventListener('loadstart', handleLoadStart);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('progress', handleProgress);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('playing', handlePlaying);
+      audio.removeEventListener('stalled', handleStalled);
+      audio.removeEventListener('suspend', handleSuspend);
     };
   }, [onNext]);
 
@@ -167,7 +194,8 @@ const MusicPlayer = ({
       setDuration(0);
       setAudioError(false);
       setCanPlay(false);
-      console.log('Track changed to:', currentTrack.title, 'Streaming URL:', currentTrack.audioUrl);
+      setAudioLoading(true);
+      console.log('Track changed to:', currentTrack.title, 'Secure streaming URL:', currentTrack.audioUrl);
     }
   }, [currentTrack?.id]);
 
@@ -176,24 +204,26 @@ const MusicPlayer = ({
     const audio = audioRef.current;
     if (!audio || !currentTrack?.audioUrl) return;
 
-    if (isPlaying && canPlay) {
-      console.log('Attempting to play streaming audio:', currentTrack.audioUrl);
+    if (isPlaying && canPlay && !audioError) {
+      console.log('Attempting to play secure streaming audio:', currentTrack.audioUrl);
       const playPromise = audio.play();
       
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
-            console.log('Streaming audio playback started successfully');
+            console.log('Secure streaming audio playback started successfully');
+            setAudioLoading(false);
           })
           .catch((error) => {
-            console.error('Failed to play streaming audio:', error);
+            console.error('Failed to play secure streaming audio:', error);
             setAudioError(true);
+            setAudioLoading(false);
           });
       }
     } else if (!isPlaying) {
       audio.pause();
     }
-  }, [isPlaying, canPlay, currentTrack]);
+  }, [isPlaying, canPlay, currentTrack, audioError]);
 
   // Update volume
   useEffect(() => {
@@ -221,7 +251,7 @@ const MusicPlayer = ({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-4 py-3">
-      {/* Audio element for streaming playback */}
+      {/* Audio element for secure streaming playback */}
       {currentTrack?.audioUrl && (
         <audio
           ref={audioRef}
@@ -229,8 +259,8 @@ const MusicPlayer = ({
           preload="metadata"
           crossOrigin="anonymous"
           playsInline
-          onLoadStart={() => console.log('Streaming audio element load start')}
-          onError={(e) => console.error('Streaming audio element error:', e)}
+          onLoadStart={() => console.log('Secure streaming audio element load start')}
+          onError={(e) => console.error('Secure streaming audio element error:', e)}
         />
       )}
       
@@ -245,10 +275,10 @@ const MusicPlayer = ({
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-medium text-white truncate">{displayTrack.title}</h4>
             <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
-            {audioLoading && <p className="text-xs text-blue-400">Loading audio stream...</p>}
-            {audioError && <p className="text-xs text-red-400">Streaming error - check connection</p>}
+            {audioLoading && <p className="text-xs text-blue-400">Streaming from private bucket...</p>}
+            {audioError && <p className="text-xs text-red-400">Stream error - check connection</p>}
             {!canPlay && currentTrack?.audioUrl && !audioLoading && !audioError && (
-              <p className="text-xs text-yellow-400">Buffering stream...</p>
+              <p className="text-xs text-yellow-400">Authenticating with bucket...</p>
             )}
           </div>
         </div>
