@@ -13,20 +13,24 @@ const corsHeaders = {
 };
 
 // Cache for authorization token
-let authCache: { token: string; apiUrl: string; downloadUrl: string; expires: number } | null = null;
+let authCache: { 
+  authorizationToken: string; 
+  apiUrl: string; 
+  downloadUrl: string; 
+  expires: number 
+} | null = null;
 
-async function getAuthToken() {
-  // Check if we have a valid cached token (valid for 24 hours)
+async function getB2Auth() {
+  // Check if we have a valid cached token (valid for 23 hours)
   if (authCache && authCache.expires > Date.now()) {
-    console.log("Using cached Backblaze auth token");
+    console.log("Using cached B2 auth token");
     return authCache;
   }
 
-  console.log("Getting new Backblaze auth token");
-  const authUrl = "https://api.backblazeb2.com/b2api/v2/b2_authorize_account";
+  console.log("Getting new B2 auth token using native API");
   const credentials = btoa(`${BACKBLAZE_APP_KEY_ID}:${BACKBLAZE_APP_KEY}`);
   
-  const response = await fetch(authUrl, {
+  const response = await fetch("https://api.backblazeb2.com/b2api/v2/b2_authorize_account", {
     method: "GET",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -35,16 +39,16 @@ async function getAuthToken() {
   
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`Backblaze auth failed: ${response.status} ${response.statusText} - ${errorText}`);
-    throw new Error(`Failed to authorize with Backblaze: ${response.status} ${response.statusText}`);
+    console.error(`B2 auth failed: ${response.status} ${response.statusText} - ${errorText}`);
+    throw new Error(`Failed to authorize with B2: ${response.status} ${response.statusText}`);
   }
   
   const authData = await response.json();
-  console.log("Backblaze auth successful");
+  console.log("B2 auth successful");
   
-  // Cache the token for 23 hours (Backblaze tokens are valid for 24 hours)
+  // Cache the token for 23 hours (B2 tokens are valid for 24 hours)
   authCache = {
-    token: authData.authorizationToken,
+    authorizationToken: authData.authorizationToken,
     apiUrl: authData.apiUrl,
     downloadUrl: authData.downloadUrl,
     expires: Date.now() + (23 * 60 * 60 * 1000)
@@ -56,17 +60,17 @@ async function getAuthToken() {
 async function streamAudioFile(fileName: string, range?: string) {
   try {
     console.log(`Streaming request for file: ${fileName}`);
-    const auth = await getAuthToken();
+    const auth = await getB2Auth();
     
     // Clean and encode the filename properly
     const cleanFileName = fileName.trim();
     const encodedFileName = encodeURIComponent(cleanFileName);
     const fileUrl = `${auth.downloadUrl}/file/${BACKBLAZE_BUCKET_NAME}/${encodedFileName}`;
     
-    console.log(`Fetching from: ${fileUrl}`);
+    console.log(`Fetching from B2: ${fileUrl}`);
     
     const headers: Record<string, string> = {
-      Authorization: auth.token,
+      Authorization: auth.authorizationToken,
       "User-Agent": "Supabase-Edge-Function/1.0",
     };
     
@@ -76,20 +80,20 @@ async function streamAudioFile(fileName: string, range?: string) {
       console.log(`Range request: ${range}`);
     }
     
-    console.log('Making request to Backblaze...');
+    console.log('Making request to B2...');
     const response = await fetch(fileUrl, { 
       headers,
       method: "GET"
     });
     
     if (!response.ok) {
-      console.error(`Backblaze fetch failed: ${response.status} ${response.statusText}`);
+      console.error(`B2 fetch failed: ${response.status} ${response.statusText}`);
       const errorBody = await response.text();
       console.error(`Error body: ${errorBody}`);
       throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
     }
     
-    console.log(`Backblaze response: ${response.status}`);
+    console.log(`B2 response: ${response.status}`);
     
     // Get the response headers
     const contentType = response.headers.get("content-type") || "audio/mpeg";

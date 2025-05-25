@@ -1,18 +1,16 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { S3Client, ListObjectsV2Command } from "https://esm.sh/@aws-sdk/client-s3@3.0.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-// Backblaze B2 S3-compatible configuration
+// Backblaze B2 Native API configuration
 const BACKBLAZE_APP_KEY_ID = "005ef3018aedce30000000002";
 const BACKBLAZE_APP_KEY = "K0057ZHWh10HSaUAggG4bKeOtOLJG6E";
 const BACKBLAZE_BUCKET_NAME = "Music-web";
-const BACKBLAZE_REGION = "us-east-005";
-const BACKBLAZE_ENDPOINT = "https://s3.us-east-005.backblazeb2.com";
+const BACKBLAZE_BUCKET_ID = "0edfd3f0f1b8fa7e9d6c0e13";
 
 // Define CORS headers for browser access
 const corsHeaders = {
@@ -25,39 +23,94 @@ const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false }
 });
 
-// Create S3 client for Backblaze B2
-const s3Client = new S3Client({
-  region: BACKBLAZE_REGION,
-  endpoint: BACKBLAZE_ENDPOINT,
-  credentials: {
-    accessKeyId: BACKBLAZE_APP_KEY_ID,
-    secretAccessKey: BACKBLAZE_APP_KEY,
-  },
-  forcePathStyle: true, // Required for Backblaze S3 compatibility
-});
+// Cache for B2 authorization
+let authCache: { 
+  authorizationToken: string; 
+  apiUrl: string; 
+  downloadUrl: string; 
+  expires: number 
+} | null = null;
 
-// Function to list files in the Backblaze B2 bucket using S3 API
-async function listBackblazeFiles() {
+// Function to authorize with Backblaze B2 native API
+async function authorizeB2() {
+  // Check if we have a valid cached token (valid for 23 hours)
+  if (authCache && authCache.expires > Date.now()) {
+    console.log("Using cached B2 auth token");
+    return authCache;
+  }
+
   try {
-    console.log(`Listing files in bucket ${BACKBLAZE_BUCKET_NAME} using S3 API...`);
+    console.log("Getting new B2 auth token using native API");
+    const credentials = btoa(`${BACKBLAZE_APP_KEY_ID}:${BACKBLAZE_APP_KEY}`);
     
-    const command = new ListObjectsV2Command({
-      Bucket: BACKBLAZE_BUCKET_NAME,
-      MaxKeys: 1000,
+    const response = await fetch("https://api.backblazeb2.com/b2api/v2/b2_authorize_account", {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${credentials}`,
+      },
     });
     
-    const response = await s3Client.send(command);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`B2 auth failed: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(`Failed to authorize with B2: ${response.status} ${response.statusText}`);
+    }
     
-    if (!response.Contents) {
+    const authData = await response.json();
+    console.log("B2 auth successful");
+    
+    // Cache the token for 23 hours (B2 tokens are valid for 24 hours)
+    authCache = {
+      authorizationToken: authData.authorizationToken,
+      apiUrl: authData.apiUrl,
+      downloadUrl: authData.downloadUrl,
+      expires: Date.now() + (23 * 60 * 60 * 1000)
+    };
+    
+    return authCache;
+  } catch (error) {
+    console.error("Error authorizing with B2:", error);
+    throw error;
+  }
+}
+
+// Function to list files in the Backblaze B2 bucket using native API
+async function listBackblazeFiles() {
+  try {
+    console.log(`Listing files in bucket ${BACKBLAZE_BUCKET_NAME} using native B2 API...`);
+    
+    const auth = await authorizeB2();
+    
+    const response = await fetch(`${auth.apiUrl}/b2api/v2/b2_list_file_names`, {
+      method: "POST",
+      headers: {
+        Authorization: auth.authorizationToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        bucketId: BACKBLAZE_BUCKET_ID,
+        maxFileCount: 1000,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`B2 list files failed: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(`Failed to list files: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.files) {
       console.log("No files found in bucket");
       return { files: [] };
     }
     
-    const files = response.Contents.map(object => ({
-      fileName: object.Key || '',
-      fileId: object.ETag || '',
-      size: object.Size || 0,
-      lastModified: object.LastModified || new Date(),
+    const files = data.files.map((file: any) => ({
+      fileName: file.fileName || '',
+      fileId: file.fileId || '',
+      size: file.size || 0,
+      lastModified: new Date(file.uploadTimestamp || Date.now()),
     }));
     
     console.log(`Found ${files.length} files in bucket`);
@@ -69,7 +122,7 @@ async function listBackblazeFiles() {
 }
 
 // Function to process music files and extract metadata
-function extractMetadataFromFileName(fileName) {
+function extractMetadataFromFileName(fileName: string) {
   try {
     // Remove file extension
     const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
@@ -99,7 +152,7 @@ function extractMetadataFromFileName(fileName) {
 }
 
 // Function to check if a file is an audio file
-function isAudioFile(fileName) {
+function isAudioFile(fileName: string) {
   const audioExtensions = [
     '.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.wma', '.opus', '.3gp', '.amr'
   ];
@@ -116,7 +169,7 @@ function isAudioFile(fileName) {
 }
 
 // Function to estimate duration for audio files
-function estimateAudioDuration(fileName, fileSize) {
+function estimateAudioDuration(fileName: string, fileSize: number) {
   // Basic estimation: assume average bitrate of 128 kbps for MP3
   const averageBitrateKbps = 128;
   const fileSizeInBits = fileSize * 8;
@@ -126,18 +179,26 @@ function estimateAudioDuration(fileName, fileSize) {
   return Math.max(30, Math.min(durationInSeconds, 600));
 }
 
-// Function to generate a download URL for a Backblaze file
-function generateDownloadUrl(fileName) {
-  const encodedFileName = encodeURIComponent(fileName);
-  return `https://f005.backblazeb2.com/file/${BACKBLAZE_BUCKET_NAME}/${encodedFileName}`;
+// Function to generate a download URL for a Backblaze file using native API
+async function generateDownloadUrl(fileName: string) {
+  try {
+    const auth = await authorizeB2();
+    const encodedFileName = encodeURIComponent(fileName);
+    return `${auth.downloadUrl}/file/${BACKBLAZE_BUCKET_NAME}/${encodedFileName}`;
+  } catch (error) {
+    console.error("Error generating download URL:", error);
+    // Fallback to public URL format (though this might not work for private buckets)
+    const encodedFileName = encodeURIComponent(fileName);
+    return `https://f005.backblazeb2.com/file/${BACKBLAZE_BUCKET_NAME}/${encodedFileName}`;
+  }
 }
 
 // Main synchronization function
 async function syncBackblazeToSupabase() {
   try {
-    console.log("Starting synchronization process with S3 API...");
+    console.log("Starting synchronization process with native B2 API...");
     
-    // List files in the bucket using S3 API
+    // List files in the bucket using native B2 API
     const filesData = await listBackblazeFiles();
     
     // Process each file
@@ -169,8 +230,8 @@ async function syncBackblazeToSupabase() {
         // Extract metadata from filename
         const metadata = extractMetadataFromFileName(file.fileName);
         
-        // Generate download URL
-        const audioUrl = generateDownloadUrl(file.fileName);
+        // Generate download URL using native B2 API
+        const audioUrl = await generateDownloadUrl(file.fileName);
         
         // Estimate duration based on file size
         const estimatedDuration = estimateAudioDuration(file.fileName, file.size || 0);
@@ -290,7 +351,7 @@ serve(async (req) => {
   
   try {
     if (req.method === "POST") {
-      console.log("POST request received, starting sync process with S3 API");
+      console.log("POST request received, starting sync process with native B2 API");
       const result = await syncBackblazeToSupabase();
       
       return new Response(JSON.stringify(result), {
@@ -302,11 +363,11 @@ serve(async (req) => {
       });
     } else if (req.method === "GET") {
       return new Response(JSON.stringify({ 
-        status: "Backblaze sync function is running with S3 API",
+        status: "Backblaze sync function is running with native B2 API",
         config: {
           backblaze_bucket: BACKBLAZE_BUCKET_NAME,
-          backblaze_endpoint: BACKBLAZE_ENDPOINT,
-          backblaze_region: BACKBLAZE_REGION
+          backblaze_bucket_id: BACKBLAZE_BUCKET_ID,
+          api_type: "Native B2 API"
         }
       }), {
         headers: { 
