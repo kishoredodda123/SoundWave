@@ -34,11 +34,13 @@ async function getAuthToken() {
   });
   
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`Backblaze auth failed: ${response.status} ${response.statusText} - ${errorText}`);
     throw new Error(`Failed to authorize with Backblaze: ${response.status} ${response.statusText}`);
   }
   
   const authData = await response.json();
-  console.log("Backblaze auth successful");
+  console.log("Backblaze auth successful", { apiUrl: authData.apiUrl, downloadUrl: authData.downloadUrl });
   
   // Cache the token for 23 hours (Backblaze tokens are valid for 24 hours)
   authCache = {
@@ -55,13 +57,18 @@ async function streamAudioFile(fileName: string, range?: string) {
   try {
     console.log(`Starting to stream file: ${fileName}`);
     const auth = await getAuthToken();
-    const encodedFileName = encodeURIComponent(fileName);
+    
+    // Clean and encode the filename properly
+    const cleanFileName = fileName.trim();
+    const encodedFileName = encodeURIComponent(cleanFileName);
     const fileUrl = `${auth.downloadUrl}/file/${BACKBLAZE_BUCKET_NAME}/${encodedFileName}`;
     
     console.log(`Fetching from Backblaze URL: ${fileUrl}`);
+    console.log(`Using auth token: ${auth.token.substring(0, 20)}...`);
     
     const headers: Record<string, string> = {
       Authorization: auth.token,
+      "User-Agent": "Supabase-Edge-Function/1.0",
     };
     
     // Add range header for partial content requests (important for audio streaming)
@@ -70,14 +77,20 @@ async function streamAudioFile(fileName: string, range?: string) {
       console.log(`Range request: ${range}`);
     }
     
-    const response = await fetch(fileUrl, { headers });
+    const response = await fetch(fileUrl, { 
+      headers,
+      method: "GET"
+    });
     
     if (!response.ok) {
       console.error(`Backblaze fetch failed: ${response.status} ${response.statusText}`);
-      throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+      const errorBody = await response.text();
+      console.error(`Error body: ${errorBody}`);
+      throw new Error(`Failed to fetch file: ${response.status} ${response.statusText} - ${errorBody}`);
     }
     
     console.log(`Backblaze response status: ${response.status}`);
+    console.log(`Response headers:`, Object.fromEntries(response.headers.entries()));
     
     // Get the response headers
     const contentType = response.headers.get("content-type") || "audio/mpeg";
@@ -85,7 +98,7 @@ async function streamAudioFile(fileName: string, range?: string) {
     const acceptRanges = response.headers.get("accept-ranges") || "bytes";
     const contentRange = response.headers.get("content-range");
     
-    console.log(`Content-Type: ${contentType}, Content-Length: ${contentLength}`);
+    console.log(`Streaming - Content-Type: ${contentType}, Content-Length: ${contentLength}, Accept-Ranges: ${acceptRanges}`);
     
     // Prepare response headers
     const responseHeaders: Record<string, string> = {
@@ -105,7 +118,7 @@ async function streamAudioFile(fileName: string, range?: string) {
     
     // Return the appropriate status code
     const status = range && response.status === 206 ? 206 : 200;
-    console.log(`Streaming response status: ${status}`);
+    console.log(`Streaming response status: ${status}, headers:`, responseHeaders);
     
     return new Response(response.body, {
       status,
@@ -116,7 +129,8 @@ async function streamAudioFile(fileName: string, range?: string) {
     console.error("Error streaming audio file:", error);
     return new Response(JSON.stringify({ 
       error: "Failed to stream audio file", 
-      details: error.message 
+      details: error.message,
+      fileName: fileName 
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -125,7 +139,8 @@ async function streamAudioFile(fileName: string, range?: string) {
 }
 
 serve(async (req) => {
-  console.log(`${req.method} ${req.url}`);
+  const url = new URL(req.url);
+  console.log(`${req.method} ${url.pathname}${url.search}`);
   
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -140,15 +155,17 @@ serve(async (req) => {
   }
   
   try {
-    const url = new URL(req.url);
     const fileName = url.searchParams.get("file");
     
     if (!fileName) {
+      console.error("No file parameter provided");
       return new Response(JSON.stringify({ error: "File parameter is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    
+    console.log(`Processing request for file: "${fileName}"`);
     
     // Get range header for partial content requests
     const range = req.headers.get("range");
