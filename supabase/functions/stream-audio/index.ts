@@ -40,7 +40,7 @@ async function getAuthToken() {
   }
   
   const authData = await response.json();
-  console.log("Backblaze auth successful", { apiUrl: authData.apiUrl, downloadUrl: authData.downloadUrl });
+  console.log("Backblaze auth successful");
   
   // Cache the token for 23 hours (Backblaze tokens are valid for 24 hours)
   authCache = {
@@ -55,7 +55,7 @@ async function getAuthToken() {
 
 async function streamAudioFile(fileName: string, range?: string) {
   try {
-    console.log(`Starting to stream file: ${fileName}`);
+    console.log(`Streaming request for file: ${fileName}`);
     const auth = await getAuthToken();
     
     // Clean and encode the filename properly
@@ -63,8 +63,7 @@ async function streamAudioFile(fileName: string, range?: string) {
     const encodedFileName = encodeURIComponent(cleanFileName);
     const fileUrl = `${auth.downloadUrl}/file/${BACKBLAZE_BUCKET_NAME}/${encodedFileName}`;
     
-    console.log(`Fetching from Backblaze URL: ${fileUrl}`);
-    console.log(`Using auth token: ${auth.token.substring(0, 20)}...`);
+    console.log(`Fetching from: ${fileUrl}`);
     
     const headers: Record<string, string> = {
       Authorization: auth.token,
@@ -77,6 +76,7 @@ async function streamAudioFile(fileName: string, range?: string) {
       console.log(`Range request: ${range}`);
     }
     
+    console.log('Making request to Backblaze...');
     const response = await fetch(fileUrl, { 
       headers,
       method: "GET"
@@ -86,11 +86,10 @@ async function streamAudioFile(fileName: string, range?: string) {
       console.error(`Backblaze fetch failed: ${response.status} ${response.statusText}`);
       const errorBody = await response.text();
       console.error(`Error body: ${errorBody}`);
-      throw new Error(`Failed to fetch file: ${response.status} ${response.statusText} - ${errorBody}`);
+      throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
     }
     
-    console.log(`Backblaze response status: ${response.status}`);
-    console.log(`Response headers:`, Object.fromEntries(response.headers.entries()));
+    console.log(`Backblaze response: ${response.status}`);
     
     // Get the response headers
     const contentType = response.headers.get("content-type") || "audio/mpeg";
@@ -98,14 +97,14 @@ async function streamAudioFile(fileName: string, range?: string) {
     const acceptRanges = response.headers.get("accept-ranges") || "bytes";
     const contentRange = response.headers.get("content-range");
     
-    console.log(`Streaming - Content-Type: ${contentType}, Content-Length: ${contentLength}, Accept-Ranges: ${acceptRanges}`);
+    console.log(`Streaming audio - Type: ${contentType}, Length: ${contentLength}`);
     
     // Prepare response headers
     const responseHeaders: Record<string, string> = {
       ...corsHeaders,
       "Content-Type": contentType,
       "Accept-Ranges": acceptRanges,
-      "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+      "Cache-Control": "public, max-age=3600",
     };
     
     if (contentLength) {
@@ -118,7 +117,7 @@ async function streamAudioFile(fileName: string, range?: string) {
     
     // Return the appropriate status code
     const status = range && response.status === 206 ? 206 : 200;
-    console.log(`Streaming response status: ${status}, headers:`, responseHeaders);
+    console.log(`Returning response with status: ${status}`);
     
     return new Response(response.body, {
       status,

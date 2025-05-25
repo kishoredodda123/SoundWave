@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
@@ -24,7 +25,6 @@ const MusicPlayer = ({
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const [canPlay, setCanPlay] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Default track for demo when no track is selected
@@ -46,22 +46,6 @@ const MusicPlayer = ({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Retry loading audio with exponential backoff
-  const retryAudioLoad = () => {
-    if (retryCount < 3 && currentTrack?.audioUrl) {
-      const newRetryCount = retryCount + 1;
-      setRetryCount(newRetryCount);
-      console.log(`Retrying audio load attempt ${newRetryCount} for: ${currentTrack.title}`);
-      
-      setTimeout(() => {
-        const audio = audioRef.current;
-        if (audio) {
-          audio.load();
-        }
-      }, Math.pow(2, newRetryCount) * 1000); // 2s, 4s, 8s delays
-    }
-  };
-
   // Handle audio element events
   useEffect(() => {
     const audio = audioRef.current;
@@ -81,21 +65,14 @@ const MusicPlayer = ({
     };
 
     const handleCanPlay = () => {
+      console.log('Audio can play - ready to start playback');
       setAudioLoading(false);
       setCanPlay(true);
       setAudioError(false);
-      setRetryCount(0);
-      console.log('Audio can play, duration:', audio.duration);
       
       if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
         setDuration(audio.duration);
       }
-    };
-
-    const handleCanPlayThrough = () => {
-      setAudioLoading(false);
-      setCanPlay(true);
-      console.log('Audio can play through');
     };
 
     const handleLoadedMetadata = () => {
@@ -110,60 +87,33 @@ const MusicPlayer = ({
       }
     };
 
-    const handleLoadedData = () => {
-      console.log('Audio data loaded, ready state:', audio.readyState);
-      setAudioLoading(false);
-    };
-
     const handleEnded = () => {
+      console.log('Audio playback ended');
       setCurrentTime(0);
       setCanPlay(false);
       if (onNext) onNext();
     };
 
     const handleLoadStart = () => {
+      console.log('Audio loading started for:', audio.src);
       setAudioLoading(true);
       setAudioError(false);
       setCanPlay(false);
-      console.log('Audio loading started for:', audio.src);
     };
 
     const handleError = (e: Event) => {
-      setAudioLoading(false);
-      setAudioError(true);
-      setCanPlay(false);
-      
       const error = audio.error;
-      console.error('Audio error details:', {
+      console.error('Audio error occurred:', {
         code: error?.code,
         message: error?.message,
         src: audio.src,
         networkState: audio.networkState,
-        readyState: audio.readyState,
-        retryCount
+        readyState: audio.readyState
       });
       
-      // Try to retry on network errors
-      if (error?.code === MediaError.MEDIA_ERR_NETWORK && retryCount < 3) {
-        console.log('Network error detected, will retry...');
-        setTimeout(() => retryAudioLoad(), 2000);
-      }
-    };
-
-    const handleProgress = () => {
-      if (audio.buffered.length > 0) {
-        const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
-        const duration = audio.duration;
-        if (duration > 0) {
-          const bufferedPercent = (bufferedEnd / duration) * 100;
-          console.log(`Audio buffered: ${bufferedPercent.toFixed(1)}%`);
-        }
-      }
-    };
-
-    const handleWaiting = () => {
-      console.log('Audio is waiting for more data');
-      setAudioLoading(true);
+      setAudioLoading(false);
+      setAudioError(true);
+      setCanPlay(false);
     };
 
     const handlePlaying = () => {
@@ -172,58 +122,58 @@ const MusicPlayer = ({
       setAudioError(false);
     };
 
-    const handleStalled = () => {
-      console.log('Audio download stalled');
+    const handleWaiting = () => {
+      console.log('Audio is buffering...');
       setAudioLoading(true);
     };
 
-    const handleSuspend = () => {
-      console.log('Audio loading suspended');
+    const handlePause = () => {
+      console.log('Audio paused');
     };
 
+    // Add all event listeners
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('canplay', handleCanPlay);
-    audio.addEventListener('canplaythrough', handleCanPlayThrough);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('loadeddata', handleLoadedData);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('loadstart', handleLoadStart);
     audio.addEventListener('error', handleError);
-    audio.addEventListener('progress', handleProgress);
-    audio.addEventListener('waiting', handleWaiting);
     audio.addEventListener('playing', handlePlaying);
-    audio.addEventListener('stalled', handleStalled);
-    audio.addEventListener('suspend', handleSuspend);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('pause', handlePause);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('canplay', handleCanPlay);
-      audio.removeEventListener('canplaythrough', handleCanPlayThrough);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('loadeddata', handleLoadedData);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadstart', handleLoadStart);
       audio.removeEventListener('error', handleError);
-      audio.removeEventListener('progress', handleProgress);
-      audio.removeEventListener('waiting', handleWaiting);
       audio.removeEventListener('playing', handlePlaying);
-      audio.removeEventListener('stalled', handleStalled);
-      audio.removeEventListener('suspend', handleSuspend);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('pause', handlePause);
     };
-  }, [onNext, retryCount]);
+  }, [onNext]);
 
   // Reset states when track changes
   useEffect(() => {
     if (currentTrack) {
+      console.log('Track changed to:', currentTrack.title);
+      console.log('Audio URL:', currentTrack.audioUrl);
+      
       setCurrentTime(0);
       setDuration(0);
       setAudioError(false);
       setCanPlay(false);
       setAudioLoading(true);
-      setRetryCount(0);
-      console.log('Track changed to:', currentTrack.title, 'Streaming URL:', currentTrack.audioUrl);
+      
+      // Force reload the audio element
+      const audio = audioRef.current;
+      if (audio) {
+        audio.load();
+      }
     }
   }, [currentTrack?.id]);
 
@@ -233,7 +183,7 @@ const MusicPlayer = ({
     if (!audio || !currentTrack?.audioUrl) return;
 
     if (isPlaying && canPlay && !audioError) {
-      console.log('Attempting to play audio:', currentTrack.audioUrl);
+      console.log('Attempting to play audio');
       const playPromise = audio.play();
       
       if (playPromise !== undefined) {
@@ -249,6 +199,7 @@ const MusicPlayer = ({
           });
       }
     } else if (!isPlaying) {
+      console.log('Pausing audio');
       audio.pause();
     }
   }, [isPlaying, canPlay, currentTrack, audioError]);
@@ -279,10 +230,10 @@ const MusicPlayer = ({
 
   // Get status message
   const getStatusMessage = () => {
-    if (audioLoading) return "Loading from private bucket...";
-    if (audioError && retryCount > 0) return `Connection error - retrying (${retryCount}/3)...`;
-    if (audioError) return "Stream error - check connection";
-    if (!canPlay && currentTrack?.audioUrl && !audioLoading) return "Authenticating with bucket...";
+    if (!currentTrack?.audioUrl) return null;
+    if (audioLoading) return "Loading audio...";
+    if (audioError) return "Error loading audio - check connection";
+    if (!canPlay && !audioLoading) return "Preparing audio...";
     return null;
   };
 
@@ -298,8 +249,6 @@ const MusicPlayer = ({
           preload="metadata"
           crossOrigin="anonymous"
           playsInline
-          onLoadStart={() => console.log('Audio element load start')}
-          onError={(e) => console.error('Audio element error:', e)}
         />
       )}
       
@@ -315,14 +264,14 @@ const MusicPlayer = ({
             <h4 className="text-sm font-medium text-white truncate">{displayTrack.title}</h4>
             <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
             {statusMessage && (
-              <p className={`text-xs ${audioError ? 'text-red-400' : audioLoading ? 'text-blue-400' : 'text-yellow-400'}`}>
+              <p className={`text-xs ${audioError ? 'text-red-400' : 'text-blue-400'}`}>
                 {statusMessage}
               </p>
             )}
           </div>
         </div>
         
-        {/* Player Controls - Mobile: Middle, Desktop: Center */}
+        {/* Player Controls */}
         <div className="flex flex-col w-full md:w-1/2 md:px-4">
           <div className="flex justify-center items-center space-x-4 mb-3">
             <button 
@@ -337,7 +286,7 @@ const MusicPlayer = ({
                 audioLoading ? 'animate-pulse' : ''
               }`}
               onClick={onPlayPause}
-              disabled={!currentTrack?.audioUrl || audioLoading}
+              disabled={!currentTrack?.audioUrl}
             >
               {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </button>
@@ -366,7 +315,7 @@ const MusicPlayer = ({
           </div>
         </div>
         
-        {/* Volume Control - Mobile: Bottom, Desktop: Right */}
+        {/* Volume Control */}
         <div className="flex items-center justify-end w-full md:w-1/4 mt-3 md:mt-0">
           <VolumeIcon className="h-5 w-5 text-gray-400 mr-2" />
           <div className="w-24">
