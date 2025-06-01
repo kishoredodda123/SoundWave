@@ -6,18 +6,17 @@ import TrackCard from '@/components/music/TrackCard';
 import { Track, musicService } from '@/services/musicService';
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { useMusicPlayer } from '@/hooks/useMusicPlayer';
 
 const LikedSongs = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
-  const { playTrack } = useMusicPlayer();
 
   useEffect(() => {
     const fetchTracks = async () => {
       try {
         const data = await musicService.getMusicFromBackblaze();
         setTracks(data);
+        console.log('❤️ LikedSongs loaded tracks:', data.length);
       } catch (error) {
         console.error('Error fetching music:', error);
         toast({
@@ -101,7 +100,6 @@ const LikedSongs = () => {
               <TrackCard 
                 key={track.id} 
                 track={track} 
-                onPlay={playTrack}
                 playlist={tracks}
               />
             ))}

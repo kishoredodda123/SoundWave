@@ -1,14 +1,16 @@
 
 import { Play } from 'lucide-react';
 import { Track } from '@/services/musicService';
+import { useMusicPlayerContext } from '@/contexts/MusicPlayerContext';
 
 interface TrackCardProps {
   track: Track;
-  onPlay?: (track: Track, playlist?: Track[]) => void;
   playlist?: Track[];
 }
 
-const TrackCard = ({ track, onPlay, playlist }: TrackCardProps) => {
+const TrackCard = ({ track, playlist }: TrackCardProps) => {
+  const { playTrack } = useMusicPlayerContext();
+
   // Format duration to MM:SS
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -17,9 +19,8 @@ const TrackCard = ({ track, onPlay, playlist }: TrackCardProps) => {
   };
 
   const handlePlay = () => {
-    if (onPlay) {
-      onPlay(track, playlist);
-    }
+    console.log('🎯 TrackCard handlePlay called for:', track.title);
+    playTrack(track, playlist);
   };
 
   return (

@@ -24,10 +24,7 @@ const MusicPlayer = ({
   const [duration, setDuration] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
-  const [canPlay, setCanPlay] = useState(false);
-  const [isAudioReady, setIsAudioReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const playPromiseRef = useRef<Promise<void> | null>(null);
 
   // Default track for demo when no track is selected
   const displayTrack = currentTrack || {
@@ -48,33 +45,28 @@ const MusicPlayer = ({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Reset all states when track changes
+  // Reset states when track changes
   useEffect(() => {
     if (currentTrack?.audioUrl) {
-      console.log('🎵 Track changed to:', currentTrack.title);
-      console.log('🔗 Audio URL:', currentTrack.audioUrl);
+      console.log('🎵 MusicPlayer: Track changed to:', currentTrack.title);
+      console.log('🔗 MusicPlayer: Audio URL:', currentTrack.audioUrl);
       
       setCurrentTime(0);
       setDuration(0);
       setAudioError(false);
-      setCanPlay(false);
       setAudioLoading(true);
-      setIsAudioReady(false);
       
       const audio = audioRef.current;
       if (audio) {
-        // Stop any current playback
         audio.pause();
         audio.currentTime = 0;
-        
-        // Set new source and load
         audio.src = currentTrack.audioUrl;
         audio.load();
       }
     }
   }, [currentTrack?.id]);
 
-  // Handle audio element events
+  // Handle audio events
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -93,40 +85,21 @@ const MusicPlayer = ({
     };
 
     const handleCanPlay = () => {
-      console.log('✅ Audio can play - ready for playback');
+      console.log('✅ Audio can play');
       setAudioLoading(false);
-      setCanPlay(true);
       setAudioError(false);
-      setIsAudioReady(true);
-      
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-        setDuration(audio.duration);
-      }
     };
 
     const handleLoadedMetadata = () => {
-      console.log('📋 Audio metadata loaded:', {
-        duration: audio.duration,
-        src: audio.src,
-        readyState: audio.readyState
-      });
-      
+      console.log('📋 Audio metadata loaded');
       if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
         setDuration(audio.duration);
       }
     };
 
-    const handleLoadedData = () => {
-      console.log('📦 Audio data loaded');
-      setAudioLoading(false);
-      setCanPlay(true);
-      setAudioError(false);
-    };
-
     const handleEnded = () => {
-      console.log('🏁 Audio playback ended');
+      console.log('🏁 Audio ended');
       setCurrentTime(0);
-      setIsAudioReady(false);
       if (onNext) onNext();
     };
 
@@ -134,37 +107,23 @@ const MusicPlayer = ({
       console.log('🔄 Audio loading started');
       setAudioLoading(true);
       setAudioError(false);
-      setCanPlay(false);
-      setIsAudioReady(false);
     };
 
     const handleError = () => {
-      const error = audio.error;
-      console.error('❌ Audio error:', {
-        code: error?.code,
-        message: error?.message,
-        src: audio.src
-      });
-      
+      console.error('❌ Audio error:', audio.error);
       setAudioLoading(false);
       setAudioError(true);
-      setCanPlay(false);
-      setIsAudioReady(false);
     };
 
     const handlePlaying = () => {
-      console.log('▶️ Audio started playing');
+      console.log('▶️ Audio playing');
       setAudioLoading(false);
       setAudioError(false);
     };
 
     const handleWaiting = () => {
-      console.log('⏳ Audio buffering...');
+      console.log('⏳ Audio waiting');
       setAudioLoading(true);
-    };
-
-    const handlePause = () => {
-      console.log('⏸️ Audio paused');
     };
 
     // Add event listeners
@@ -172,99 +131,48 @@ const MusicPlayer = ({
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('loadeddata', handleLoadedData);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('loadstart', handleLoadStart);
     audio.addEventListener('error', handleError);
     audio.addEventListener('playing', handlePlaying);
     audio.addEventListener('waiting', handleWaiting);
-    audio.addEventListener('pause', handlePause);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('loadeddata', handleLoadedData);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadstart', handleLoadStart);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('waiting', handleWaiting);
-      audio.removeEventListener('pause', handlePause);
     };
   }, [onNext]);
 
-  // Control play/pause with improved logic
+  // Control play/pause
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack?.audioUrl) return;
 
     const handlePlayback = async () => {
-      if (isPlaying) {
-        console.log('🎯 Attempting to play audio');
-        console.log('🔍 Audio state:', {
-          readyState: audio.readyState,
-          canPlay,
-          isAudioReady,
-          paused: audio.paused,
-          currentSrc: audio.currentSrc
-        });
-
-        try {
-          // Wait for previous play promise to resolve
-          if (playPromiseRef.current) {
-            await playPromiseRef.current;
-          }
-
-          // Ensure we have a valid source
-          if (!audio.src || audio.src !== currentTrack.audioUrl) {
-            audio.src = currentTrack.audioUrl;
-            audio.load();
-            
-            // Wait a bit for the load to start
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-
-          // Try to play
-          playPromiseRef.current = audio.play();
-          await playPromiseRef.current;
-          
-          console.log('✅ Audio play successful');
-          
-        } catch (error) {
-          console.error('❌ Audio play failed:', error);
-          
-          // Try alternative approach for some browsers
-          setTimeout(async () => {
-            try {
-              console.log('🔄 Retrying audio play...');
-              if (audio.readyState >= 2) { // HAVE_CURRENT_DATA
-                playPromiseRef.current = audio.play();
-                await playPromiseRef.current;
-                console.log('✅ Audio retry successful');
-              }
-            } catch (retryError) {
-              console.error('❌ Audio retry failed:', retryError);
-              setAudioError(true);
-            }
-          }, 500);
-        }
-      } else {
-        console.log('⏸️ Pausing audio');
-        try {
-          if (playPromiseRef.current) {
-            await playPromiseRef.current;
-          }
+      try {
+        if (isPlaying) {
+          console.log('🎯 MusicPlayer: Attempting to play');
+          await audio.play();
+          console.log('✅ MusicPlayer: Play successful');
+        } else {
+          console.log('⏸️ MusicPlayer: Pausing');
           audio.pause();
-        } catch (error) {
-          console.error('Error pausing audio:', error);
         }
+      } catch (error) {
+        console.error('❌ MusicPlayer: Playback error:', error);
+        setAudioError(true);
       }
     };
 
     handlePlayback();
-  }, [isPlaying, currentTrack?.audioUrl, isAudioReady]);
+  }, [isPlaying, currentTrack?.audioUrl]);
 
   // Update volume
   useEffect(() => {
@@ -294,8 +202,7 @@ const MusicPlayer = ({
   const getStatusMessage = () => {
     if (!currentTrack?.audioUrl) return null;
     if (audioLoading) return "Loading audio...";
-    if (audioError) return "Error loading audio - check your connection";
-    if (!isAudioReady && currentTrack?.audioUrl) return "Preparing audio...";
+    if (audioError) return "Error loading audio";
     return null;
   };
 
@@ -303,14 +210,12 @@ const MusicPlayer = ({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-4 py-3">
-      {/* Improved audio element configuration */}
       {currentTrack?.audioUrl && (
         <audio
           ref={audioRef}
           preload="auto"
           crossOrigin="anonymous"
           playsInline
-          controls={false}
           style={{ display: 'none' }}
         />
       )}
