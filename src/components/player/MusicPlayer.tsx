@@ -87,6 +87,20 @@ const MusicPlayer = ({
       }
     };
 
+    const handleLoadedData = () => {
+      console.log('Audio data loaded, can start playing');
+      setAudioLoading(false);
+      setCanPlay(true);
+      setAudioError(false);
+    };
+
+    const handleCanPlayThrough = () => {
+      console.log('Audio can play through without stopping');
+      setAudioLoading(false);
+      setCanPlay(true);
+      setAudioError(false);
+    };
+
     const handleEnded = () => {
       console.log('Audio playback ended');
       setCurrentTime(0);
@@ -131,29 +145,46 @@ const MusicPlayer = ({
       console.log('Audio paused');
     };
 
+    const handleProgress = () => {
+      if (audio.buffered.length > 0) {
+        const bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
+        const duration = audio.duration;
+        if (duration > 0) {
+          const bufferedPercent = (bufferedEnd / duration) * 100;
+          console.log(`Audio buffered: ${bufferedPercent.toFixed(1)}%`);
+        }
+      }
+    };
+
     // Add all event listeners
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('loadeddata', handleLoadedData);
+    audio.addEventListener('canplaythrough', handleCanPlayThrough);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('loadstart', handleLoadStart);
     audio.addEventListener('error', handleError);
     audio.addEventListener('playing', handlePlaying);
     audio.addEventListener('waiting', handleWaiting);
     audio.addEventListener('pause', handlePause);
+    audio.addEventListener('progress', handleProgress);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('loadeddata', handleLoadedData);
+      audio.removeEventListener('canplaythrough', handleCanPlayThrough);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadstart', handleLoadStart);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('waiting', handleWaiting);
       audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('progress', handleProgress);
     };
   }, [onNext]);
 
@@ -177,13 +208,17 @@ const MusicPlayer = ({
     }
   }, [currentTrack?.id]);
 
-  // Control play/pause
+  // Control play/pause with better error handling
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack?.audioUrl) return;
 
-    if (isPlaying && canPlay && !audioError) {
+    if (isPlaying) {
       console.log('Attempting to play audio');
+      console.log('Audio ready state:', audio.readyState);
+      console.log('Can play state:', canPlay);
+      
+      // Try to play even if canPlay is false for some audio sources
       const playPromise = audio.play();
       
       if (playPromise !== undefined) {
@@ -191,18 +226,36 @@ const MusicPlayer = ({
           .then(() => {
             console.log('Audio playback started successfully');
             setAudioLoading(false);
+            setAudioError(false);
           })
           .catch((error) => {
             console.error('Failed to play audio:', error);
-            setAudioError(true);
-            setAudioLoading(false);
+            
+            // For some browsers/sources, we need to wait a bit and retry
+            setTimeout(() => {
+              console.log('Retrying audio playback...');
+              const retryPromise = audio.play();
+              if (retryPromise !== undefined) {
+                retryPromise
+                  .then(() => {
+                    console.log('Audio playback retry successful');
+                    setAudioLoading(false);
+                    setAudioError(false);
+                  })
+                  .catch((retryError) => {
+                    console.error('Audio playback retry failed:', retryError);
+                    setAudioError(true);
+                    setAudioLoading(false);
+                  });
+              }
+            }, 1000);
           });
       }
     } else if (!isPlaying) {
       console.log('Pausing audio');
       audio.pause();
     }
-  }, [isPlaying, canPlay, currentTrack, audioError]);
+  }, [isPlaying, currentTrack]);
 
   // Update volume
   useEffect(() => {
@@ -215,7 +268,7 @@ const MusicPlayer = ({
   // Handle seek
   const handleSeek = (values: number[]) => {
     const audio = audioRef.current;
-    if (audio && canPlay && !isNaN(values[0]) && duration > 0) {
+    if (audio && !isNaN(values[0]) && duration > 0) {
       const newTime = Math.min(values[0], duration);
       audio.currentTime = newTime;
       setCurrentTime(newTime);
@@ -232,8 +285,8 @@ const MusicPlayer = ({
   const getStatusMessage = () => {
     if (!currentTrack?.audioUrl) return null;
     if (audioLoading) return "Loading audio...";
-    if (audioError) return "Error loading audio - check connection";
-    if (!canPlay && !audioLoading) return "Preparing audio...";
+    if (audioError) return "Error loading audio - trying to reconnect";
+    if (!canPlay && !audioLoading && currentTrack?.audioUrl) return "Preparing audio...";
     return null;
   };
 
@@ -241,14 +294,15 @@ const MusicPlayer = ({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-4 py-3">
-      {/* Audio element for secure streaming playback */}
+      {/* Audio element with better configuration */}
       {currentTrack?.audioUrl && (
         <audio
           ref={audioRef}
           src={currentTrack.audioUrl}
-          preload="metadata"
+          preload="auto"
           crossOrigin="anonymous"
           playsInline
+          controls={false}
         />
       )}
       
@@ -308,7 +362,7 @@ const MusicPlayer = ({
                 step={1}
                 onValueChange={handleSeek}
                 className="cursor-pointer"
-                disabled={!canPlay || effectiveDuration === 0}
+                disabled={effectiveDuration === 0}
               />
             </div>
             <span>{formatTime(effectiveDuration)}</span>
