@@ -68,6 +68,7 @@ async function streamAudioFile(fileName: string, range?: string) {
     const fileUrl = `${auth.downloadUrl}/file/${BACKBLAZE_BUCKET_NAME}/${encodedFileName}`;
     
     console.log(`Fetching from B2: ${fileUrl}`);
+    console.log(`Using auth token: ${auth.authorizationToken.substring(0, 20)}...`);
     
     const headers: Record<string, string> = {
       Authorization: auth.authorizationToken,
@@ -80,53 +81,48 @@ async function streamAudioFile(fileName: string, range?: string) {
       console.log(`Range request: ${range}`);
     }
     
-    console.log('Making request to B2...');
+    console.log('Making request to B2 with headers:', Object.keys(headers));
     const response = await fetch(fileUrl, { 
       headers,
       method: "GET"
     });
     
+    console.log(`B2 response status: ${response.status}`);
+    console.log(`B2 response headers:`, Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
       console.error(`B2 fetch failed: ${response.status} ${response.statusText}`);
       const errorBody = await response.text();
       console.error(`Error body: ${errorBody}`);
+      
+      // If unauthorized, clear the auth cache and try once more
+      if (response.status === 401) {
+        console.log("401 error, clearing auth cache and retrying...");
+        authCache = null;
+        const newAuth = await getB2Auth();
+        
+        const retryResponse = await fetch(fileUrl.replace(auth.downloadUrl, newAuth.downloadUrl), {
+          headers: {
+            ...headers,
+            Authorization: newAuth.authorizationToken,
+          },
+          method: "GET"
+        });
+        
+        if (!retryResponse.ok) {
+          const retryErrorBody = await retryResponse.text();
+          console.error(`Retry failed: ${retryResponse.status} ${retryResponse.statusText} - ${retryErrorBody}`);
+          throw new Error(`Failed to fetch file after retry: ${retryResponse.status} ${retryResponse.statusText}`);
+        }
+        
+        console.log(`Retry successful: ${retryResponse.status}`);
+        return createStreamResponse(retryResponse, range);
+      }
+      
       throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
     }
     
-    console.log(`B2 response: ${response.status}`);
-    
-    // Get the response headers
-    const contentType = response.headers.get("content-type") || "audio/mpeg";
-    const contentLength = response.headers.get("content-length");
-    const acceptRanges = response.headers.get("accept-ranges") || "bytes";
-    const contentRange = response.headers.get("content-range");
-    
-    console.log(`Streaming audio - Type: ${contentType}, Length: ${contentLength}`);
-    
-    // Prepare response headers
-    const responseHeaders: Record<string, string> = {
-      ...corsHeaders,
-      "Content-Type": contentType,
-      "Accept-Ranges": acceptRanges,
-      "Cache-Control": "public, max-age=3600",
-    };
-    
-    if (contentLength) {
-      responseHeaders["Content-Length"] = contentLength;
-    }
-    
-    if (contentRange) {
-      responseHeaders["Content-Range"] = contentRange;
-    }
-    
-    // Return the appropriate status code
-    const status = range && response.status === 206 ? 206 : 200;
-    console.log(`Returning response with status: ${status}`);
-    
-    return new Response(response.body, {
-      status,
-      headers: responseHeaders,
-    });
+    return createStreamResponse(response, range);
     
   } catch (error) {
     console.error("Error streaming audio file:", error);
@@ -139,6 +135,41 @@ async function streamAudioFile(fileName: string, range?: string) {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+}
+
+function createStreamResponse(response: Response, range?: string) {
+  // Get the response headers
+  const contentType = response.headers.get("content-type") || "audio/mpeg";
+  const contentLength = response.headers.get("content-length");
+  const acceptRanges = response.headers.get("accept-ranges") || "bytes";
+  const contentRange = response.headers.get("content-range");
+  
+  console.log(`Streaming audio - Type: ${contentType}, Length: ${contentLength}`);
+  
+  // Prepare response headers
+  const responseHeaders: Record<string, string> = {
+    ...corsHeaders,
+    "Content-Type": contentType,
+    "Accept-Ranges": acceptRanges,
+    "Cache-Control": "public, max-age=3600",
+  };
+  
+  if (contentLength) {
+    responseHeaders["Content-Length"] = contentLength;
+  }
+  
+  if (contentRange) {
+    responseHeaders["Content-Range"] = contentRange;
+  }
+  
+  // Return the appropriate status code
+  const status = range && response.status === 206 ? 206 : 200;
+  console.log(`Returning response with status: ${status}`);
+  
+  return new Response(response.body, {
+    status,
+    headers: responseHeaders,
+  });
 }
 
 serve(async (req) => {
