@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 // Types for music data
@@ -84,14 +85,15 @@ const getMusicFromBackblaze = async (): Promise<Track[]> => {
         title: t.title, 
         audioUrl: t.audioUrl 
       })));
-      return tracks;
+      // Add the public track to the beginning of the list
+      return [publicTrack, ...tracks];
     } else {
-      console.log('No music files found in database, returning mock data');
-      return mockTracks;
+      console.log('No music files found in database, returning mock data with public track');
+      return [publicTrack, ...mockTracks];
     }
   } catch (error) {
     console.error('Error in getMusicFromBackblaze:', error);
-    return mockTracks;
+    return [publicTrack, ...mockTracks];
   }
 };
 
@@ -153,17 +155,18 @@ const getTrendingTracks = async (): Promise<Track[]> => {
     
     if (error) {
       console.error('Error fetching trending tracks:', error);
-      return mockTracks.slice(0, 5);
+      return [publicTrack, ...mockTracks.slice(0, 4)];
     }
     
     if (data && data.length > 0) {
-      return data.map(transformMusicFileToTrack);
+      const tracks = data.map(transformMusicFileToTrack);
+      return [publicTrack, ...tracks.slice(0, 4)];
     } else {
-      return mockTracks.slice(0, 5);
+      return [publicTrack, ...mockTracks.slice(0, 4)];
     }
   } catch (error) {
     console.error('Error in getTrendingTracks:', error);
-    return mockTracks.slice(0, 5);
+    return [publicTrack, ...mockTracks.slice(0, 4)];
   }
 };
 
@@ -179,17 +182,18 @@ const getRecommendedTracks = async (): Promise<Track[]> => {
     
     if (error) {
       console.error('Error fetching recommended tracks:', error);
-      return mockTracks.slice(3, 6);
+      return [publicTrack, ...mockTracks.slice(2, 5)];
     }
     
     if (data && data.length > 0) {
-      return data.map(transformMusicFileToTrack);
+      const tracks = data.map(transformMusicFileToTrack);
+      return [publicTrack, ...tracks.slice(0, 4)];
     } else {
-      return mockTracks.slice(3, 6);
+      return [publicTrack, ...mockTracks.slice(2, 5)];
     }
   } catch (error) {
     console.error('Error in getRecommendedTracks:', error);
-    return mockTracks.slice(3, 6);
+    return [publicTrack, ...mockTracks.slice(2, 5)];
   }
 };
 
@@ -200,6 +204,11 @@ const searchTracks = async (query: string): Promise<Track[]> => {
   try {
     const normalizedQuery = query.toLowerCase();
     
+    // First check if the public track matches
+    const publicTrackMatches = publicTrack.title.toLowerCase().includes(normalizedQuery) ||
+                              publicTrack.artist.toLowerCase().includes(normalizedQuery) ||
+                              publicTrack.album.toLowerCase().includes(normalizedQuery);
+    
     const { data, error } = await supabase
       .from('music_files')
       .select('*')
@@ -208,36 +217,56 @@ const searchTracks = async (query: string): Promise<Track[]> => {
     
     if (error) {
       console.error('Error searching tracks:', error);
-      return mockTracks.filter(
+      const mockResults = mockTracks.filter(
         track => 
           track.title.toLowerCase().includes(normalizedQuery) ||
           track.artist.toLowerCase().includes(normalizedQuery) ||
           track.album.toLowerCase().includes(normalizedQuery)
       );
+      return publicTrackMatches ? [publicTrack, ...mockResults] : mockResults;
     }
     
     if (data && data.length > 0) {
-      return data.map(transformMusicFileToTrack);
+      const dbResults = data.map(transformMusicFileToTrack);
+      return publicTrackMatches ? [publicTrack, ...dbResults] : dbResults;
     } else {
       // If no results in DB, fall back to mock data
-      return mockTracks.filter(
+      const mockResults = mockTracks.filter(
         track => 
           track.title.toLowerCase().includes(normalizedQuery) ||
           track.artist.toLowerCase().includes(normalizedQuery) ||
           track.album.toLowerCase().includes(normalizedQuery)
       );
+      return publicTrackMatches ? [publicTrack, ...mockResults] : mockResults;
     }
   } catch (error) {
     console.error('Error in searchTracks:', error);
     // Fall back to mock data filtering
     const normalizedQuery = query.toLowerCase();
-    return mockTracks.filter(
+    const mockResults = mockTracks.filter(
       track => 
         track.title.toLowerCase().includes(normalizedQuery) ||
         track.artist.toLowerCase().includes(normalizedQuery) ||
         track.album.toLowerCase().includes(normalizedQuery)
     );
+    const publicTrackMatches = publicTrack.title.toLowerCase().includes(normalizedQuery) ||
+                              publicTrack.artist.toLowerCase().includes(normalizedQuery) ||
+                              publicTrack.album.toLowerCase().includes(normalizedQuery);
+    return publicTrackMatches ? [publicTrack, ...mockResults] : mockResults;
   }
+};
+
+// Your public track
+const publicTrack: Track = {
+  id: 'public-track-1',
+  title: 'My Public Song',
+  artist: 'Your Artist',
+  album: 'Public Album',
+  duration: 180, // 3 minutes - you can adjust this
+  cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=300&h=300',
+  audioUrl: 'https://u.pcloud.link/publink/show?code=XZORNS5ZSnViH86claLQ0q3lVijrO48qffw7',
+  releaseDate: '2024-01-01',
+  genre: 'Public',
 };
 
 // Mock data for initial testing
@@ -318,7 +347,7 @@ const mockPlaylists: Playlist[] = [
     description: 'The hottest tracks right now',
     cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
     trackCount: 50,
-    tracks: mockTracks.slice(0, 4),
+    tracks: [publicTrack, ...mockTracks.slice(0, 3)],
   },
   {
     id: '2',
