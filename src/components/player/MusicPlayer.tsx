@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Track } from '@/services/musicService';
+import { toast } from "@/hooks/use-toast";
 
 interface MusicPlayerProps {
   currentTrack?: Track;
@@ -24,7 +25,15 @@ const MusicPlayer = ({
   const [duration, setDuration] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Fallback audio URLs for demonstration
+  const fallbackAudioUrls = [
+    'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
+    'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
+    'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjmR3fLDcSYELYXN8diJNwgZaLvt559NEAxQqOXwtmAcBjiS1/LLeSsFJHfI8N2QQAoUXrTp66hVFApGnt7yv2ohBjmS3vLDcSUGK4TP8tiJOQcZaLzq559NEAxQp+Tvt2IcBjuV1/HLeysFJHfI8N2PPw=='
+  ];
 
   // Default track for demo when no track is selected
   const displayTrack = currentTrack || {
@@ -45,43 +54,98 @@ const MusicPlayer = ({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  // Auto-retry with fallback URLs
+  const tryNextUrl = async () => {
+    const audio = audioRef.current;
+    if (!audio || !currentTrack) return false;
+
+    // Try fallback URLs if original fails
+    const urlsToTry = [
+      currentTrack.audioUrl,
+      ...fallbackAudioUrls
+    ].filter(Boolean);
+
+    for (let i = retryCount; i < urlsToTry.length; i++) {
+      try {
+        console.log(`🔄 Trying audio URL ${i + 1}/${urlsToTry.length}:`, urlsToTry[i]);
+        
+        // Reset audio
+        audio.pause();
+        audio.currentTime = 0;
+        
+        // Set new source
+        audio.src = urlsToTry[i];
+        audio.load();
+        
+        // Test if it can load
+        const canPlay = await new Promise<boolean>((resolve) => {
+          const timeout = setTimeout(() => resolve(false), 3000);
+          
+          const onCanPlay = () => {
+            clearTimeout(timeout);
+            audio.removeEventListener('canplay', onCanPlay);
+            audio.removeEventListener('error', onError);
+            resolve(true);
+          };
+          
+          const onError = () => {
+            clearTimeout(timeout);
+            audio.removeEventListener('canplay', onCanPlay);
+            audio.removeEventListener('error', onError);
+            resolve(false);
+          };
+          
+          audio.addEventListener('canplay', onCanPlay);
+          audio.addEventListener('error', onError);
+        });
+
+        if (canPlay) {
+          console.log('✅ Audio source working:', urlsToTry[i]);
+          setRetryCount(i);
+          setAudioError(false);
+          setAudioLoading(false);
+          
+          if (i > 0) {
+            toast({
+              title: "Audio Recovered",
+              description: "Using fallback audio source",
+            });
+          }
+          
+          return true;
+        }
+      } catch (error) {
+        console.log(`❌ Failed URL ${i + 1}:`, error);
+        continue;
+      }
+    }
+    
+    console.log('❌ All audio URLs failed');
+    setAudioError(true);
+    setAudioLoading(false);
+    toast({
+      title: "Track Unavailable",
+      description: "This track cannot be played right now",
+      variant: "destructive",
+    });
+    return false;
+  };
+
   // Reset states when track changes
   useEffect(() => {
     if (currentTrack?.audioUrl) {
       console.log('🎵 MusicPlayer: Track changed to:', currentTrack.title);
-      console.log('🔗 MusicPlayer: Audio URL:', currentTrack.audioUrl);
       
       setCurrentTime(0);
       setDuration(0);
       setAudioError(false);
       setAudioLoading(true);
+      setRetryCount(0);
       
-      const audio = audioRef.current;
-      if (audio) {
-        // Reset audio element
-        audio.pause();
-        audio.currentTime = 0;
-        audio.volume = volume / 100;
-        
-        // Clear any existing source
-        if (audio.src) {
-          audio.removeAttribute('src');
-          audio.load();
-        }
-        
-        // Set new source with proper handling
-        try {
-          audio.src = currentTrack.audioUrl;
-          audio.preload = 'metadata';
-          audio.load();
-        } catch (error) {
-          console.error('❌ Error setting audio source:', error);
-          setAudioError(true);
-          setAudioLoading(false);
-        }
-      }
+      // Auto-try loading with fallbacks
+      tryNextUrl();
     }
-  }, [currentTrack?.id, volume]);
+  }, [currentTrack?.id]);
 
   // Handle audio events
   useEffect(() => {
@@ -95,7 +159,6 @@ const MusicPlayer = ({
     };
 
     const handleDurationChange = () => {
-      console.log('📊 Duration changed:', audio.duration);
       if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
         setDuration(audio.duration);
         setAudioLoading(false);
@@ -129,16 +192,15 @@ const MusicPlayer = ({
       setAudioError(false);
     };
 
-    const handleError = (e: Event) => {
+    const handleError = async (e: Event) => {
       const target = e.target as HTMLAudioElement;
       console.error('❌ Audio error:', target.error);
-      setAudioLoading(false);
-      setAudioError(true);
       
-      // Clear the problematic source
-      if (target.src) {
-        target.removeAttribute('src');
-        target.load();
+      // Auto-retry with next URL
+      const recovered = await tryNextUrl();
+      if (!recovered) {
+        setAudioLoading(false);
+        setAudioError(true);
       }
     };
 
@@ -159,19 +221,12 @@ const MusicPlayer = ({
       setAudioError(false);
     };
 
-    const handleLoadedData = () => {
-      console.log('📊 Audio data loaded');
-      setAudioLoading(false);
-      setAudioError(false);
-    };
-
     // Add event listeners
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('canplaythrough', handleCanPlayThrough);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('loadeddata', handleLoadedData);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('loadstart', handleLoadStart);
     audio.addEventListener('error', handleError);
@@ -184,36 +239,42 @@ const MusicPlayer = ({
       audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('canplaythrough', handleCanPlayThrough);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('loadeddata', handleLoadedData);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadstart', handleLoadStart);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('waiting', handleWaiting);
     };
-  }, [onNext]);
+  }, [onNext, currentTrack]);
 
-  // Control play/pause with improved error handling
+  // Control play/pause with automatic error recovery
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !currentTrack?.audioUrl || audioError) return;
+    if (!audio || !currentTrack?.audioUrl) return;
 
     const handlePlayback = async () => {
       try {
-        if (isPlaying) {
+        if (isPlaying && !audioError) {
           console.log('🎯 MusicPlayer: Attempting to play');
+          
+          // If audio has error, try to recover first
+          if (audio.error || audio.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+            console.log('🔄 Recovering from audio error...');
+            const recovered = await tryNextUrl();
+            if (!recovered) return;
+          }
           
           // Ensure audio is ready
           if (audio.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
-            console.log('⏳ Audio not ready, waiting for data...');
+            console.log('⏳ Waiting for audio data...');
             setAudioLoading(true);
             
-            // Wait for audio to be ready
+            // Wait for audio to be ready with timeout
             const waitForReady = () => {
               return new Promise<void>((resolve, reject) => {
                 const timeout = setTimeout(() => {
                   reject(new Error('Audio loading timeout'));
-                }, 10000); // 10 second timeout
+                }, 5000);
                 
                 const checkReady = () => {
                   if (audio.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
@@ -230,10 +291,9 @@ const MusicPlayer = ({
             try {
               await waitForReady();
             } catch (error) {
-              console.error('❌ Audio loading timeout:', error);
-              setAudioError(true);
-              setAudioLoading(false);
-              return;
+              console.error('❌ Audio loading timeout, trying recovery...');
+              const recovered = await tryNextUrl();
+              if (!recovered) return;
             }
           }
           
@@ -243,19 +303,29 @@ const MusicPlayer = ({
             console.log('✅ MusicPlayer: Play successful');
             setAudioLoading(false);
           }
-        } else {
+        } else if (!isPlaying) {
           console.log('⏸️ MusicPlayer: Pausing');
           audio.pause();
         }
       } catch (error) {
-        console.error('❌ MusicPlayer: Playback error:', error);
-        setAudioError(true);
-        setAudioLoading(false);
+        console.error('❌ MusicPlayer: Playback error, attempting recovery...', error);
+        const recovered = await tryNextUrl();
+        if (recovered && isPlaying) {
+          // Try to play again after recovery
+          try {
+            await audio.play();
+            setAudioLoading(false);
+          } catch (retryError) {
+            console.error('❌ Retry failed:', retryError);
+            setAudioError(true);
+            setAudioLoading(false);
+          }
+        }
       }
     };
 
     handlePlayback();
-  }, [isPlaying, currentTrack?.audioUrl, audioError]);
+  }, [isPlaying, currentTrack?.audioUrl]);
 
   // Update volume
   useEffect(() => {
@@ -281,6 +351,13 @@ const MusicPlayer = ({
   // Get effective duration
   const effectiveDuration = duration > 0 ? duration : (currentTrack?.duration || 0);
 
+  // Show loading or error status
+  const getTrackStatus = () => {
+    if (audioError) return 'Track unavailable - using fallback';
+    if (audioLoading) return 'Loading...';
+    return null;
+  };
+
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-4 py-3">
       {currentTrack?.audioUrl && (
@@ -302,11 +379,10 @@ const MusicPlayer = ({
           <div className="flex-1 min-w-0">
             <h4 className="text-sm font-medium text-white truncate">{displayTrack.title}</h4>
             <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
-            {audioLoading && !audioError && (
-              <p className="text-xs text-blue-400">Loading...</p>
-            )}
-            {audioError && (
-              <p className="text-xs text-red-400">Track unavailable</p>
+            {getTrackStatus() && (
+              <p className={`text-xs ${audioError ? 'text-yellow-400' : 'text-blue-400'}`}>
+                {getTrackStatus()}
+              </p>
             )}
           </div>
         </div>
@@ -326,9 +402,9 @@ const MusicPlayer = ({
                 audioLoading ? 'animate-pulse' : ''
               }`}
               onClick={onPlayPause}
-              disabled={!currentTrack?.audioUrl || audioError}
+              disabled={!currentTrack?.audioUrl}
             >
-              {isPlaying && !audioError ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+              {isPlaying && !audioError && !audioLoading ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </button>
             <button 
               className="text-gray-400 hover:text-white disabled:opacity-50"

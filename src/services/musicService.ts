@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // Types for music data
@@ -85,15 +84,15 @@ const getMusicFromBackblaze = async (): Promise<Track[]> => {
         title: t.title, 
         audioUrl: t.audioUrl 
       })));
-      // Add the public track to the beginning of the list
-      return [publicTrack, ...tracks];
+      // Add the demo tracks to the beginning of the list
+      return [...demoTracks, ...tracks];
     } else {
-      console.log('No music files found in database, returning mock data with public track');
-      return [publicTrack, ...mockTracks];
+      console.log('No music files found in database, returning demo tracks');
+      return demoTracks;
     }
   } catch (error) {
     console.error('Error in getMusicFromBackblaze:', error);
-    return [publicTrack, ...mockTracks];
+    return demoTracks;
   }
 };
 
@@ -256,6 +255,102 @@ const searchTracks = async (query: string): Promise<Track[]> => {
   }
 };
 
+// Demo tracks with working audio URLs
+const demoTracks: Track[] = [
+  {
+    id: 'demo-1',
+    title: 'Demo Track 1',
+    artist: 'Demo Artist',
+    album: 'Demo Album',
+    duration: 30,
+    cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=300&h=300',
+    audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
+    releaseDate: '2024-01-01',
+    genre: 'Demo',
+  },
+  {
+    id: 'demo-2',
+    title: 'Demo Track 2',
+    artist: 'Demo Artist',
+    album: 'Demo Album',
+    duration: 25,
+    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
+    audioUrl: 'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
+    releaseDate: '2024-01-01',
+    genre: 'Demo',
+  }
+];
+
+// Mock data for initial testing
+const mockTracks: Track[] = [
+  {
+    id: '1',
+    title: 'Blinding Lights',
+    artist: 'The Weeknd',
+    album: 'After Hours',
+    duration: 200,
+    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
+    audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
+    releaseDate: '2020-03-20',
+    genre: 'Pop',
+  },
+  {
+    id: '2',
+    title: 'Save Your Tears',
+    artist: 'The Weeknd',
+    album: 'After Hours',
+    duration: 215,
+    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
+    audioUrl: 'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
+    releaseDate: '2020-03-20',
+    genre: 'Pop',
+  },
+  {
+    id: '3',
+    title: 'Starboy',
+    artist: 'The Weeknd, Daft Punk',
+    album: 'Starboy',
+    duration: 230,
+    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
+    audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
+    releaseDate: '2016-11-25',
+    genre: 'Pop',
+  },
+  {
+    id: '4',
+    title: 'Memories',
+    artist: 'Maroon 5',
+    album: 'Jordi',
+    duration: 189,
+    cover: 'https://images.unsplash.com/photo-1500673922987-e212871fec22?auto=format&fit=crop&w=300&h=300',
+    audioUrl: 'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
+    releaseDate: '2019-09-20',
+    genre: 'Pop',
+  },
+  {
+    id: '5',
+    title: 'Bad Habits',
+    artist: 'Ed Sheeran',
+    album: '=',
+    duration: 230,
+    cover: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=300&h=300',
+    audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
+    releaseDate: '2021-06-25',
+    genre: 'Pop',
+  },
+  {
+    id: '6',
+    title: 'Stay',
+    artist: 'The Kid LAROI, Justin Bieber',
+    album: 'F*CK LOVE 3: OVER YOU',
+    duration: 141,
+    cover: 'https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=crop&w=300&h=300',
+    audioUrl: 'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
+    releaseDate: '2021-07-09',
+    genre: 'Pop',
+  },
+];
+
 // Your public track
 const publicTrack: Track = {
   id: 'public-track-1',
@@ -268,76 +363,6 @@ const publicTrack: Track = {
   releaseDate: '2024-01-01',
   genre: 'Public',
 };
-
-// Mock data for initial testing
-const mockTracks: Track[] = [
-  {
-    id: '1',
-    title: 'Blinding Lights',
-    artist: 'The Weeknd',
-    album: 'After Hours',
-    duration: 200,
-    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://example.com/audio/blinding-lights.mp3',
-    releaseDate: '2020-03-20',
-    genre: 'Pop',
-  },
-  {
-    id: '2',
-    title: 'Save Your Tears',
-    artist: 'The Weeknd',
-    album: 'After Hours',
-    duration: 215,
-    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://example.com/audio/save-your-tears.mp3',
-    releaseDate: '2020-03-20',
-    genre: 'Pop',
-  },
-  {
-    id: '3',
-    title: 'Starboy',
-    artist: 'The Weeknd, Daft Punk',
-    album: 'Starboy',
-    duration: 230,
-    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://example.com/audio/starboy.mp3',
-    releaseDate: '2016-11-25',
-    genre: 'Pop',
-  },
-  {
-    id: '4',
-    title: 'Memories',
-    artist: 'Maroon 5',
-    album: 'Jordi',
-    duration: 189,
-    cover: 'https://images.unsplash.com/photo-1500673922987-e212871fec22?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://example.com/audio/memories.mp3',
-    releaseDate: '2019-09-20',
-    genre: 'Pop',
-  },
-  {
-    id: '5',
-    title: 'Bad Habits',
-    artist: 'Ed Sheeran',
-    album: '=',
-    duration: 230,
-    cover: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://example.com/audio/bad-habits.mp3',
-    releaseDate: '2021-06-25',
-    genre: 'Pop',
-  },
-  {
-    id: '6',
-    title: 'Stay',
-    artist: 'The Kid LAROI, Justin Bieber',
-    album: 'F*CK LOVE 3: OVER YOU',
-    duration: 141,
-    cover: 'https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://example.com/audio/stay.mp3',
-    releaseDate: '2021-07-09',
-    genre: 'Pop',
-  },
-];
 
 // Mock featured playlists
 const mockPlaylists: Playlist[] = [
