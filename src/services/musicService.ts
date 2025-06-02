@@ -84,15 +84,15 @@ const getMusicFromBackblaze = async (): Promise<Track[]> => {
         title: t.title, 
         audioUrl: t.audioUrl 
       })));
-      // Add the demo tracks to the beginning of the list
-      return [...demoTracks, ...tracks];
+      // Add the public tracks to the beginning of the list
+      return [...publicTracks, ...tracks];
     } else {
-      console.log('No music files found in database, returning demo tracks');
-      return demoTracks;
+      console.log('No music files found in database, returning public tracks');
+      return publicTracks;
     }
   } catch (error) {
     console.error('Error in getMusicFromBackblaze:', error);
-    return demoTracks;
+    return publicTracks;
   }
 };
 
@@ -154,18 +154,18 @@ const getTrendingTracks = async (): Promise<Track[]> => {
     
     if (error) {
       console.error('Error fetching trending tracks:', error);
-      return [publicTrack, ...mockTracks.slice(0, 4)];
+      return publicTracks.slice(0, 5);
     }
     
     if (data && data.length > 0) {
       const tracks = data.map(transformMusicFileToTrack);
-      return [publicTrack, ...tracks.slice(0, 4)];
+      return [...publicTracks, ...tracks.slice(0, 3)];
     } else {
-      return [publicTrack, ...mockTracks.slice(0, 4)];
+      return publicTracks;
     }
   } catch (error) {
     console.error('Error in getTrendingTracks:', error);
-    return [publicTrack, ...mockTracks.slice(0, 4)];
+    return publicTracks;
   }
 };
 
@@ -181,18 +181,18 @@ const getRecommendedTracks = async (): Promise<Track[]> => {
     
     if (error) {
       console.error('Error fetching recommended tracks:', error);
-      return [publicTrack, ...mockTracks.slice(2, 5)];
+      return [...publicTracks, ...mockTracks.slice(2, 5)];
     }
     
     if (data && data.length > 0) {
       const tracks = data.map(transformMusicFileToTrack);
-      return [publicTrack, ...tracks.slice(0, 4)];
+      return [...publicTracks, ...tracks.slice(0, 3)];
     } else {
-      return [publicTrack, ...mockTracks.slice(2, 5)];
+      return [...publicTracks, ...mockTracks.slice(2, 5)];
     }
   } catch (error) {
     console.error('Error in getRecommendedTracks:', error);
-    return [publicTrack, ...mockTracks.slice(2, 5)];
+    return [...publicTracks, ...mockTracks.slice(2, 5)];
   }
 };
 
@@ -203,10 +203,12 @@ const searchTracks = async (query: string): Promise<Track[]> => {
   try {
     const normalizedQuery = query.toLowerCase();
     
-    // First check if the public track matches
-    const publicTrackMatches = publicTrack.title.toLowerCase().includes(normalizedQuery) ||
-                              publicTrack.artist.toLowerCase().includes(normalizedQuery) ||
-                              publicTrack.album.toLowerCase().includes(normalizedQuery);
+    // First check if any public tracks match
+    const publicTrackMatches = publicTracks.filter(track => 
+      track.title.toLowerCase().includes(normalizedQuery) ||
+      track.artist.toLowerCase().includes(normalizedQuery) ||
+      track.album.toLowerCase().includes(normalizedQuery)
+    );
     
     const { data, error } = await supabase
       .from('music_files')
@@ -222,12 +224,12 @@ const searchTracks = async (query: string): Promise<Track[]> => {
           track.artist.toLowerCase().includes(normalizedQuery) ||
           track.album.toLowerCase().includes(normalizedQuery)
       );
-      return publicTrackMatches ? [publicTrack, ...mockResults] : mockResults;
+      return [...publicTrackMatches, ...mockResults];
     }
     
     if (data && data.length > 0) {
       const dbResults = data.map(transformMusicFileToTrack);
-      return publicTrackMatches ? [publicTrack, ...dbResults] : dbResults;
+      return [...publicTrackMatches, ...dbResults];
     } else {
       // If no results in DB, fall back to mock data
       const mockResults = mockTracks.filter(
@@ -236,7 +238,7 @@ const searchTracks = async (query: string): Promise<Track[]> => {
           track.artist.toLowerCase().includes(normalizedQuery) ||
           track.album.toLowerCase().includes(normalizedQuery)
       );
-      return publicTrackMatches ? [publicTrack, ...mockResults] : mockResults;
+      return [...publicTrackMatches, ...mockResults];
     }
   } catch (error) {
     console.error('Error in searchTracks:', error);
@@ -248,36 +250,38 @@ const searchTracks = async (query: string): Promise<Track[]> => {
         track.artist.toLowerCase().includes(normalizedQuery) ||
         track.album.toLowerCase().includes(normalizedQuery)
     );
-    const publicTrackMatches = publicTrack.title.toLowerCase().includes(normalizedQuery) ||
-                              publicTrack.artist.toLowerCase().includes(normalizedQuery) ||
-                              publicTrack.album.toLowerCase().includes(normalizedQuery);
-    return publicTrackMatches ? [publicTrack, ...mockResults] : mockResults;
+    const publicTrackMatches = publicTracks.filter(track => 
+      track.title.toLowerCase().includes(normalizedQuery) ||
+      track.artist.toLowerCase().includes(normalizedQuery) ||
+      track.album.toLowerCase().includes(normalizedQuery)
+    );
+    return [...publicTrackMatches, ...mockResults];
   }
 };
 
-// Demo tracks with working audio URLs
-const demoTracks: Track[] = [
+// Public tracks with working audio URLs
+const publicTracks: Track[] = [
   {
-    id: 'demo-1',
-    title: 'Demo Track 1',
-    artist: 'Demo Artist',
-    album: 'Demo Album',
-    duration: 30,
+    id: 'public-track-1',
+    title: 'My Public Song',
+    artist: 'Your Artist',
+    album: 'Public Album',
+    duration: 180,
     cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
+    audioUrl: 'https://u.pcloud.link/publink/show?code=XZORNS5ZSnViH86claLQ0q3lVijrO48qffw7',
     releaseDate: '2024-01-01',
-    genre: 'Demo',
+    genre: 'Public',
   },
   {
-    id: 'demo-2',
-    title: 'Demo Track 2',
-    artist: 'Demo Artist',
-    album: 'Demo Album',
-    duration: 25,
-    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
+    id: 'public-track-2',
+    title: 'Harom Harom Hara',
+    artist: 'Unknown Artist',
+    album: 'Unknown Album',
+    duration: 240,
+    cover: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=300&h=300',
+    audioUrl: 'https://resilient-cheesecake-34437e.netlify.app/%5BiSongs.info%5D%2001%20-%20Harom%20Harom%20Hara.mp3',
     releaseDate: '2024-01-01',
-    genre: 'Demo',
+    genre: 'Public',
   }
 ];
 
@@ -351,19 +355,6 @@ const mockTracks: Track[] = [
   },
 ];
 
-// Your public track
-const publicTrack: Track = {
-  id: 'public-track-1',
-  title: 'My Public Song',
-  artist: 'Your Artist',
-  album: 'Public Album',
-  duration: 180, // 3 minutes - you can adjust this
-  cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=300&h=300',
-  audioUrl: 'https://u.pcloud.link/publink/show?code=XZORNS5ZSnViH86claLQ0q3lVijrO48qffw7',
-  releaseDate: '2024-01-01',
-  genre: 'Public',
-};
-
 // Mock featured playlists
 const mockPlaylists: Playlist[] = [
   {
@@ -372,7 +363,7 @@ const mockPlaylists: Playlist[] = [
     description: 'The hottest tracks right now',
     cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
     trackCount: 50,
-    tracks: [publicTrack, ...mockTracks.slice(0, 3)],
+    tracks: [...publicTracks, ...mockTracks.slice(0, 3)],
   },
   {
     id: '2',
