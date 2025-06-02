@@ -25,14 +25,13 @@ const MusicPlayer = ({
   const [duration, setDuration] = useState(0);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
+  const [currentAudioUrl, setCurrentAudioUrl] = useState('');
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Fallback audio URLs for demonstration
+  // Fallback audio URLs for absolute last resort
   const fallbackAudioUrls = [
     'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
-    'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
-    'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjmR3fLDcSYELYXN8diJNwgZaLvt559NEAxQqOXwtmAcBjiS1/LLeSsFJHfI8N2QQAoUXrTp66hVFApGnt7yv2ohBjmS3vLDcSUGK4TP8tiJOQcZaLzq559NEAxQp+Tvt2IcBjuV1/HLeysFJHfI8N2PPw=='
+    'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav'
   ];
 
   // Default track for demo when no track is selected
@@ -54,78 +53,109 @@ const MusicPlayer = ({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  // Auto-retry with fallback URLs
-  const tryNextUrl = async () => {
-    const audio = audioRef.current;
-    if (!audio || !currentTrack) return false;
+  // Try to load audio with the given URL
+  const tryLoadAudio = (url: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const audio = audioRef.current;
+      if (!audio) {
+        resolve(false);
+        return;
+      }
 
-    // Try fallback URLs if original fails
-    const urlsToTry = [
-      currentTrack.audioUrl,
-      ...fallbackAudioUrls
-    ].filter(Boolean);
+      console.log(`🎵 Trying to load audio from: ${url}`);
+      
+      const timeout = setTimeout(() => {
+        console.log(`⏰ Audio loading timeout for: ${url}`);
+        cleanup();
+        resolve(false);
+      }, 10000); // 10 second timeout
 
-    for (let i = retryCount; i < urlsToTry.length; i++) {
-      try {
-        console.log(`🔄 Trying audio URL ${i + 1}/${urlsToTry.length}:`, urlsToTry[i]);
-        
-        // Reset audio
-        audio.pause();
-        audio.currentTime = 0;
-        
-        // Set new source
-        audio.src = urlsToTry[i];
-        audio.load();
-        
-        // Test if it can load
-        const canPlay = await new Promise<boolean>((resolve) => {
-          const timeout = setTimeout(() => resolve(false), 3000);
-          
-          const onCanPlay = () => {
-            clearTimeout(timeout);
-            audio.removeEventListener('canplay', onCanPlay);
-            audio.removeEventListener('error', onError);
-            resolve(true);
-          };
-          
-          const onError = () => {
-            clearTimeout(timeout);
-            audio.removeEventListener('canplay', onCanPlay);
-            audio.removeEventListener('error', onError);
-            resolve(false);
-          };
-          
-          audio.addEventListener('canplay', onCanPlay);
-          audio.addEventListener('error', onError);
-        });
+      const cleanup = () => {
+        clearTimeout(timeout);
+        audio.removeEventListener('canplay', onCanPlay);
+        audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+        audio.removeEventListener('error', onError);
+        audio.removeEventListener('abort', onError);
+      };
 
-        if (canPlay) {
-          console.log('✅ Audio source working:', urlsToTry[i]);
-          setRetryCount(i);
-          setAudioError(false);
-          setAudioLoading(false);
-          
-          if (i > 0) {
-            toast({
-              title: "Audio Recovered",
-              description: "Using fallback audio source",
-            });
-          }
-          
-          return true;
+      const onCanPlay = () => {
+        console.log(`✅ Audio loaded successfully from: ${url}`);
+        cleanup();
+        resolve(true);
+      };
+
+      const onLoadedMetadata = () => {
+        console.log(`📋 Audio metadata loaded from: ${url}`);
+        if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          cleanup();
+          resolve(true);
         }
-      } catch (error) {
-        console.log(`❌ Failed URL ${i + 1}:`, error);
-        continue;
+      };
+
+      const onError = (e: Event) => {
+        console.log(`❌ Audio failed to load from: ${url}`, (e.target as HTMLAudioElement)?.error);
+        cleanup();
+        resolve(false);
+      };
+
+      // Set up event listeners
+      audio.addEventListener('canplay', onCanPlay);
+      audio.addEventListener('loadedmetadata', onLoadedMetadata);
+      audio.addEventListener('error', onError);
+      audio.addEventListener('abort', onError);
+
+      // Reset and load new URL
+      audio.pause();
+      audio.currentTime = 0;
+      audio.src = url;
+      audio.load();
+    });
+  };
+
+  // Try original URL first, then fallbacks if needed
+  const loadAudioWithFallbacks = async () => {
+    const audio = audioRef.current;
+    if (!audio || !currentTrack?.audioUrl) return false;
+
+    setAudioLoading(true);
+    setAudioError(false);
+
+    // First, try the original URL (your pCloud link)
+    console.log(`🎯 Attempting to load original URL: ${currentTrack.audioUrl}`);
+    const originalWorked = await tryLoadAudio(currentTrack.audioUrl);
+    
+    if (originalWorked) {
+      console.log(`🎉 Original audio URL works perfectly!`);
+      setCurrentAudioUrl(currentTrack.audioUrl);
+      setAudioLoading(false);
+      return true;
+    }
+
+    console.log(`⚠️ Original URL failed, trying fallbacks...`);
+    
+    // Only try fallbacks if original completely fails
+    for (const fallbackUrl of fallbackAudioUrls) {
+      console.log(`🔄 Trying fallback: ${fallbackUrl}`);
+      const fallbackWorked = await tryLoadAudio(fallbackUrl);
+      
+      if (fallbackWorked) {
+        console.log(`✅ Fallback audio working: ${fallbackUrl}`);
+        setCurrentAudioUrl(fallbackUrl);
+        setAudioLoading(false);
+        toast({
+          title: "Using Demo Audio",
+          description: "Original track unavailable, playing demo sound",
+        });
+        return true;
       }
     }
-    
-    console.log('❌ All audio URLs failed');
+
+    console.log(`❌ All audio sources failed`);
     setAudioError(true);
     setAudioLoading(false);
     toast({
-      title: "Track Unavailable",
-      description: "This track cannot be played right now",
+      title: "Audio Unavailable",
+      description: "Unable to play this track",
       variant: "destructive",
     });
     return false;
@@ -135,15 +165,15 @@ const MusicPlayer = ({
   useEffect(() => {
     if (currentTrack?.audioUrl) {
       console.log('🎵 MusicPlayer: Track changed to:', currentTrack.title);
+      console.log('🔗 Original audio URL:', currentTrack.audioUrl);
       
       setCurrentTime(0);
       setDuration(0);
       setAudioError(false);
-      setAudioLoading(true);
-      setRetryCount(0);
+      setCurrentAudioUrl('');
       
-      // Auto-try loading with fallbacks
-      tryNextUrl();
+      // Load audio with fallbacks
+      loadAudioWithFallbacks();
     }
   }, [currentTrack?.id]);
 
@@ -192,16 +222,11 @@ const MusicPlayer = ({
       setAudioError(false);
     };
 
-    const handleError = async (e: Event) => {
+    const handleError = (e: Event) => {
       const target = e.target as HTMLAudioElement;
-      console.error('❌ Audio error:', target.error);
-      
-      // Auto-retry with next URL
-      const recovered = await tryNextUrl();
-      if (!recovered) {
-        setAudioLoading(false);
-        setAudioError(true);
-      }
+      console.error('❌ Audio playback error:', target.error);
+      setAudioError(true);
+      setAudioLoading(false);
     };
 
     const handlePlaying = () => {
@@ -245,9 +270,9 @@ const MusicPlayer = ({
       audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('waiting', handleWaiting);
     };
-  }, [onNext, currentTrack]);
+  }, [onNext]);
 
-  // Control play/pause with automatic error recovery
+  // Control play/pause
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack?.audioUrl) return;
@@ -257,44 +282,27 @@ const MusicPlayer = ({
         if (isPlaying && !audioError) {
           console.log('🎯 MusicPlayer: Attempting to play');
           
-          // If audio has error, try to recover first
-          if (audio.error || audio.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
-            console.log('🔄 Recovering from audio error...');
-            const recovered = await tryNextUrl();
-            if (!recovered) return;
-          }
-          
           // Ensure audio is ready
           if (audio.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
             console.log('⏳ Waiting for audio data...');
             setAudioLoading(true);
             
             // Wait for audio to be ready with timeout
-            const waitForReady = () => {
-              return new Promise<void>((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                  reject(new Error('Audio loading timeout'));
-                }, 5000);
-                
-                const checkReady = () => {
-                  if (audio.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
-                    clearTimeout(timeout);
-                    resolve();
-                  } else {
-                    setTimeout(checkReady, 100);
-                  }
-                };
-                checkReady();
-              });
-            };
-            
-            try {
-              await waitForReady();
-            } catch (error) {
-              console.error('❌ Audio loading timeout, trying recovery...');
-              const recovered = await tryNextUrl();
-              if (!recovered) return;
-            }
+            await new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                reject(new Error('Audio loading timeout'));
+              }, 5000);
+              
+              const checkReady = () => {
+                if (audio.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+                  clearTimeout(timeout);
+                  resolve();
+                } else {
+                  setTimeout(checkReady, 100);
+                }
+              };
+              checkReady();
+            });
           }
           
           const playPromise = audio.play();
@@ -308,24 +316,14 @@ const MusicPlayer = ({
           audio.pause();
         }
       } catch (error) {
-        console.error('❌ MusicPlayer: Playback error, attempting recovery...', error);
-        const recovered = await tryNextUrl();
-        if (recovered && isPlaying) {
-          // Try to play again after recovery
-          try {
-            await audio.play();
-            setAudioLoading(false);
-          } catch (retryError) {
-            console.error('❌ Retry failed:', retryError);
-            setAudioError(true);
-            setAudioLoading(false);
-          }
-        }
+        console.error('❌ MusicPlayer: Playback error:', error);
+        setAudioError(true);
+        setAudioLoading(false);
       }
     };
 
     handlePlayback();
-  }, [isPlaying, currentTrack?.audioUrl]);
+  }, [isPlaying, currentAudioUrl]);
 
   // Update volume
   useEffect(() => {
@@ -353,8 +351,9 @@ const MusicPlayer = ({
 
   // Show loading or error status
   const getTrackStatus = () => {
-    if (audioError) return 'Track unavailable - using fallback';
+    if (audioError) return 'Track unavailable';
     if (audioLoading) return 'Loading...';
+    if (currentAudioUrl && currentAudioUrl !== currentTrack?.audioUrl) return 'Demo audio';
     return null;
   };
 
@@ -380,7 +379,7 @@ const MusicPlayer = ({
             <h4 className="text-sm font-medium text-white truncate">{displayTrack.title}</h4>
             <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
             {getTrackStatus() && (
-              <p className={`text-xs ${audioError ? 'text-yellow-400' : 'text-blue-400'}`}>
+              <p className={`text-xs ${audioError ? 'text-red-400' : audioLoading ? 'text-blue-400' : 'text-yellow-400'}`}>
                 {getTrackStatus()}
               </p>
             )}
