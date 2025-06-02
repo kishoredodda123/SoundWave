@@ -60,7 +60,17 @@ const MusicPlayer = ({
       if (audio) {
         audio.pause();
         audio.currentTime = 0;
+        
+        // Clear previous source
+        audio.removeAttribute('src');
+        audio.load();
+        
+        // Set new source with proper attributes
         audio.src = currentTrack.audioUrl;
+        audio.crossOrigin = 'anonymous';
+        audio.preload = 'auto';
+        
+        // Try to load the audio
         audio.load();
       }
     }
@@ -95,6 +105,7 @@ const MusicPlayer = ({
       if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
         setDuration(audio.duration);
       }
+      setAudioLoading(false);
     };
 
     const handleEnded = () => {
@@ -109,10 +120,28 @@ const MusicPlayer = ({
       setAudioError(false);
     };
 
-    const handleError = () => {
-      console.error('❌ Audio error:', audio.error);
+    const handleError = (e: Event) => {
+      const target = e.target as HTMLAudioElement;
+      console.error('❌ Audio error:', target.error);
       setAudioLoading(false);
       setAudioError(true);
+      
+      // Try to provide more specific error information
+      if (target.error) {
+        switch (target.error.code) {
+          case MediaError.MEDIA_ERR_NETWORK:
+            console.error('Network error while loading audio');
+            break;
+          case MediaError.MEDIA_ERR_DECODE:
+            console.error('Audio decode error');
+            break;
+          case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            console.error('Audio format not supported');
+            break;
+          default:
+            console.error('Unknown audio error');
+        }
+      }
     };
 
     const handlePlaying = () => {
@@ -126,10 +155,17 @@ const MusicPlayer = ({
       setAudioLoading(true);
     };
 
+    const handleCanPlayThrough = () => {
+      console.log('🎯 Audio can play through');
+      setAudioLoading(false);
+      setAudioError(false);
+    };
+
     // Add event listeners
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('canplaythrough', handleCanPlayThrough);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('loadstart', handleLoadStart);
@@ -141,6 +177,7 @@ const MusicPlayer = ({
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('canplaythrough', handleCanPlayThrough);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadstart', handleLoadStart);
@@ -150,29 +187,41 @@ const MusicPlayer = ({
     };
   }, [onNext]);
 
-  // Control play/pause
+  // Control play/pause with better error handling
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack?.audioUrl) return;
 
     const handlePlayback = async () => {
       try {
-        if (isPlaying) {
+        if (isPlaying && !audioError) {
           console.log('🎯 MusicPlayer: Attempting to play');
-          await audio.play();
-          console.log('✅ MusicPlayer: Play successful');
-        } else {
+          
+          // Ensure audio is loaded before playing
+          if (audio.readyState < 2) {
+            console.log('⏳ Audio not ready, waiting...');
+            setAudioLoading(true);
+            return;
+          }
+          
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            await playPromise;
+            console.log('✅ MusicPlayer: Play successful');
+          }
+        } else if (!isPlaying) {
           console.log('⏸️ MusicPlayer: Pausing');
           audio.pause();
         }
       } catch (error) {
         console.error('❌ MusicPlayer: Playback error:', error);
         setAudioError(true);
+        setAudioLoading(false);
       }
     };
 
     handlePlayback();
-  }, [isPlaying, currentTrack?.audioUrl]);
+  }, [isPlaying, currentTrack?.audioUrl, audioError]);
 
   // Update volume
   useEffect(() => {
@@ -202,7 +251,7 @@ const MusicPlayer = ({
   const getStatusMessage = () => {
     if (!currentTrack?.audioUrl) return null;
     if (audioLoading) return "Loading audio...";
-    if (audioError) return "Error loading audio";
+    if (audioError) return "Unable to play this track";
     return null;
   };
 
@@ -214,8 +263,6 @@ const MusicPlayer = ({
         <audio
           ref={audioRef}
           preload="auto"
-          crossOrigin="anonymous"
-          playsInline
           style={{ display: 'none' }}
         />
       )}
@@ -254,7 +301,7 @@ const MusicPlayer = ({
                 audioLoading ? 'animate-pulse' : ''
               }`}
               onClick={onPlayPause}
-              disabled={!currentTrack?.audioUrl || audioError}
+              disabled={!currentTrack?.audioUrl}
             >
               {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </button>
