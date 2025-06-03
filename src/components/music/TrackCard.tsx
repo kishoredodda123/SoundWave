@@ -1,7 +1,9 @@
 
-import { Play } from 'lucide-react';
+import { Play, Heart } from 'lucide-react';
 import { Track } from '@/services/musicService';
 import { useMusicPlayerContext } from '@/contexts/MusicPlayerContext';
+import { musicService } from '@/services/musicService';
+import { useState, useEffect } from 'react';
 
 interface TrackCardProps {
   track: Track;
@@ -10,6 +12,11 @@ interface TrackCardProps {
 
 const TrackCard = ({ track, playlist }: TrackCardProps) => {
   const { playTrack } = useMusicPlayerContext();
+  const [isLiked, setIsLiked] = useState(false);
+
+  useEffect(() => {
+    setIsLiked(musicService.isTrackLiked(track.id));
+  }, [track.id]);
 
   // Format duration to MM:SS
   const formatDuration = (seconds: number) => {
@@ -20,7 +27,14 @@ const TrackCard = ({ track, playlist }: TrackCardProps) => {
 
   const handlePlay = () => {
     console.log('🎯 TrackCard handlePlay called for:', track.title);
+    musicService.addToRecentlyPlayed(track);
     playTrack(track, playlist);
+  };
+
+  const handleLike = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering play
+    const newLikedStatus = musicService.toggleLikeTrack(track);
+    setIsLiked(newLikedStatus);
   };
 
   return (
@@ -42,8 +56,20 @@ const TrackCard = ({ track, playlist }: TrackCardProps) => {
         <h3 className="text-sm font-medium text-white truncate">{track.title}</h3>
         <p className="text-xs text-gray-400 truncate">{track.artist}</p>
       </div>
-      <div className="text-xs text-gray-400 ml-4">
-        {formatDuration(track.duration)}
+      <div className="flex items-center gap-3 ml-4">
+        <button
+          onClick={handleLike}
+          className={`p-1 rounded-full transition-colors ${
+            isLiked 
+              ? 'text-red-500 hover:text-red-400' 
+              : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+        </button>
+        <div className="text-xs text-gray-400">
+          {formatDuration(track.duration)}
+        </div>
       </div>
     </div>
   );

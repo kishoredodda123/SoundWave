@@ -16,10 +16,10 @@ const PlaylistCard = ({
       onClick={onClick}
     >
       <div className="aspect-square bg-music-hover rounded-md mb-3 flex items-center justify-center">
-        {playlist.coverImage ? (
+        {playlist.cover ? (
           <img 
-            src={playlist.coverImage} 
-            alt={playlist.name}
+            src={playlist.cover} 
+            alt={playlist.title}
             className="w-full h-full object-cover rounded-md"
           />
         ) : (
@@ -30,7 +30,7 @@ const PlaylistCard = ({
           </div>
         )}
       </div>
-      <h3 className="font-medium text-white mb-1 truncate">{playlist.name}</h3>
+      <h3 className="font-medium text-white mb-1 truncate">{playlist.title}</h3>
       <p className="text-xs text-gray-400 truncate">{playlist.description}</p>
     </div>
   );

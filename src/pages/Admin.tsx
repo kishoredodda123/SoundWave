@@ -1,79 +1,128 @@
-import { useState, useEffect } from 'react';
+
+import { useState } from 'react';
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, CheckCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Plus, Music, Album as AlbumIcon } from "lucide-react";
 import MainLayout from '@/components/layout/MainLayout';
-import { musicService } from '@/services/musicService';
-import { supabase } from '@/integrations/supabase/client';
+import { musicService, Album } from '@/services/musicService';
 
 const Admin = () => {
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncResults, setSyncResults] = useState<any>(null);
-  const [musicFiles, setMusicFiles] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
+  const [albumData, setAlbumData] = useState({
+    title: '',
+    artist: '',
+    cover: '',
+    numberOfSongs: 1,
+    releaseDate: new Date().toISOString().split('T')[0]
+  });
+  const [currentAlbumId, setCurrentAlbumId] = useState<string | null>(null);
+  const [trackData, setTrackData] = useState({
+    title: '',
+    artist: '',
+    audioUrl: '',
+    duration: 180
+  });
+  const [trackIndex, setTrackIndex] = useState(0);
 
-  const loadMusicFiles = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('music_files')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      setMusicFiles(data || []);
-    } catch (error) {
-      console.error('Error loading music files:', error);
+  const handleCreateAlbum = () => {
+    if (!albumData.title || !albumData.artist) {
       toast({
         title: "Error",
-        description: "Failed to load music files.",
+        description: "Please fill in album title and artist.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+      return;
     }
-  };
 
-  const handleSyncBackblaze = async () => {
-    setIsSyncing(true);
-    setSyncResults(null);
+    const newAlbum = musicService.createAlbum({
+      title: albumData.title,
+      artist: albumData.artist,
+      cover: albumData.cover || 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
+      releaseDate: albumData.releaseDate,
+      trackCount: 0,
+      tracks: []
+    });
+
+    setCurrentAlbumId(newAlbum.id);
+    setTrackIndex(0);
+    setIsCreatingAlbum(false);
     
-    try {
-      // Call the syncBackblazeToSupabase function
-      const result = await musicService.syncBackblazeToSupabase();
-      
-      setSyncResults(result);
-      
+    toast({
+      title: "Album Created",
+      description: `Album "${albumData.title}" created successfully. Now add songs to it.`,
+    });
+
+    setAlbumData({
+      title: '',
+      artist: '',
+      cover: '',
+      numberOfSongs: 1,
+      releaseDate: new Date().toISOString().split('T')[0]
+    });
+  };
+
+  const handleAddTrack = () => {
+    if (!currentAlbumId || !trackData.title || !trackData.artist || !trackData.audioUrl) {
       toast({
-        title: "Sync Complete",
-        description: `Processed ${result.processed || 0} files from Backblaze.`,
-      });
-      
-      // Refresh the file list
-      await loadMusicFiles();
-    } catch (error) {
-      console.error('Error syncing with Backblaze:', error);
-      toast({
-        title: "Sync Failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        title: "Error",
+        description: "Please fill in all track details.",
         variant: "destructive",
       });
-      
-      setSyncResults({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
+      return;
+    }
+
+    const track = musicService.addTrackToAlbum(currentAlbumId, {
+      title: trackData.title,
+      artist: trackData.artist,
+      album: albums.find(a => a.id === currentAlbumId)?.title || '',
+      duration: trackData.duration,
+      cover: albums.find(a => a.id === currentAlbumId)?.cover || '',
+      audioUrl: trackData.audioUrl,
+      genre: 'Album Track'
+    });
+
+    if (track) {
+      setTrackIndex(prev => prev + 1);
+      setTrackData({
+        title: '',
+        artist: '',
+        audioUrl: '',
+        duration: 180
       });
-    } finally {
-      setIsSyncing(false);
+
+      toast({
+        title: "Track Added",
+        description: `Track "${track.title}" added to album successfully.`,
+      });
+
+      // Refresh albums list
+      setAlbums(musicService.getAlbums());
+
+      const currentAlbum = musicService.getAlbums().find(a => a.id === currentAlbumId);
+      if (currentAlbum && trackIndex + 1 >= albumData.numberOfSongs) {
+        toast({
+          title: "Album Complete",
+          description: `Album "${currentAlbum.title}" is complete with ${currentAlbum.trackCount} tracks.`,
+        });
+        setCurrentAlbumId(null);
+        setTrackIndex(0);
+      }
     }
   };
 
-  // Load music files when component mounts
-  useEffect(() => {
-    loadMusicFiles();
-  }, []);
+  const handleAddExtraTrack = (albumId: string) => {
+    setCurrentAlbumId(albumId);
+    setTrackIndex(0);
+  };
+
+  // Load albums when component mounts
+  useState(() => {
+    setAlbums(musicService.getAlbums());
+  });
 
   return (
     <MainLayout>
@@ -81,143 +130,184 @@ const Admin = () => {
         <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {/* Backblaze Sync Card */}
+          {/* Create Album Card */}
           <Card>
             <CardHeader>
-              <CardTitle>Backblaze Sync</CardTitle>
-              <CardDescription>Synchronize music files from Backblaze B2 storage.</CardDescription>
+              <CardTitle className="flex items-center">
+                <AlbumIcon className="h-5 w-5 mr-2" />
+                Create Album
+              </CardTitle>
+              <CardDescription>Create a new album and add songs to it.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-400 mb-4">
-                This will scan your Backblaze storage for music files and import them into the database.
-              </p>
-              
-              {syncResults && (
-                <div className={`p-3 rounded-md mb-4 ${syncResults.success ? 'bg-green-900/20' : 'bg-red-900/20'}`}>
-                  {syncResults.success ? (
-                    <div className="flex items-center">
-                      <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                      <div>
-                        <p className="font-medium">Sync completed successfully</p>
-                        <p className="text-sm text-gray-400">
-                          Processed {syncResults.processed} files
-                          {syncResults.added && ` (${syncResults.added} added)`}
-                          {syncResults.updated && `, ${syncResults.updated} updated`}
-                          {syncResults.skipped && `, ${syncResults.skipped} unchanged`}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center">
-                      <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
-                      <div>
-                        <p className="font-medium">Sync failed</p>
-                        <p className="text-sm text-gray-400">{syncResults.error}</p>
-                      </div>
-                    </div>
-                  )}
+            <CardContent className="space-y-4">
+              {!isCreatingAlbum ? (
+                <Button 
+                  onClick={() => setIsCreatingAlbum(true)}
+                  className="bg-music-primary text-black hover:bg-music-highlight"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New Album
+                </Button>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="albumTitle">Album Title</Label>
+                    <Input
+                      id="albumTitle"
+                      value={albumData.title}
+                      onChange={(e) => setAlbumData(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="Enter album title"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="albumArtist">Artist</Label>
+                    <Input
+                      id="albumArtist"
+                      value={albumData.artist}
+                      onChange={(e) => setAlbumData(prev => ({ ...prev, artist: e.target.value }))}
+                      placeholder="Enter artist name"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="albumCover">Cover URL (optional)</Label>
+                    <Input
+                      id="albumCover"
+                      value={albumData.cover}
+                      onChange={(e) => setAlbumData(prev => ({ ...prev, cover: e.target.value }))}
+                      placeholder="Enter cover image URL"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="numberOfSongs">Number of Songs</Label>
+                    <Input
+                      id="numberOfSongs"
+                      type="number"
+                      min="1"
+                      value={albumData.numberOfSongs}
+                      onChange={(e) => setAlbumData(prev => ({ ...prev, numberOfSongs: parseInt(e.target.value) || 1 }))}
+                    />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleCreateAlbum}
+                      className="bg-music-primary text-black hover:bg-music-highlight"
+                    >
+                      Create Album
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={() => setIsCreatingAlbum(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
-            <CardFooter>
-              <Button 
-                onClick={handleSyncBackblaze} 
-                disabled={isSyncing}
-                className="bg-music-primary text-black hover:bg-music-highlight"
-              >
-                {isSyncing ? "Syncing..." : "Sync with Backblaze"}
-              </Button>
-            </CardFooter>
           </Card>
           
-          {/* Stats Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Music Library Stats</CardTitle>
-              <CardDescription>Current status of your music library.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+          {/* Add Track Card */}
+          {currentAlbumId && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Music className="h-5 w-5 mr-2" />
+                  Add Track {trackIndex + 1}
+                </CardTitle>
+                <CardDescription>
+                  Adding track to: {albums.find(a => a.id === currentAlbumId)?.title}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div>
-                  <div className="text-sm text-gray-400 mb-1">Total Tracks</div>
-                  {isLoading ? (
-                    <Skeleton className="h-6 w-16" />
-                  ) : (
-                    <div className="text-2xl font-bold">{musicFiles.length}</div>
-                  )}
+                  <Label htmlFor="trackTitle">Song Title</Label>
+                  <Input
+                    id="trackTitle"
+                    value={trackData.title}
+                    onChange={(e) => setTrackData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Enter song title"
+                  />
                 </div>
                 
                 <div>
-                  <div className="text-sm text-gray-400 mb-1">Storage Used</div>
-                  {isLoading ? (
-                    <Skeleton className="h-6 w-24" />
-                  ) : (
-                    <div className="text-2xl font-bold">
-                      {(musicFiles.reduce((total, file) => total + (file.file_size || 0), 0) / (1024 * 1024)).toFixed(2)} MB
-                    </div>
-                  )}
+                  <Label htmlFor="trackArtist">Artist</Label>
+                  <Input
+                    id="trackArtist"
+                    value={trackData.artist}
+                    onChange={(e) => setTrackData(prev => ({ ...prev, artist: e.target.value }))}
+                    placeholder="Enter artist name"
+                  />
                 </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button 
-                variant="outline" 
-                onClick={loadMusicFiles}
-                disabled={isLoading}
-              >
-                Refresh Stats
-              </Button>
-            </CardFooter>
-          </Card>
+                
+                <div>
+                  <Label htmlFor="trackUrl">Song URL</Label>
+                  <Input
+                    id="trackUrl"
+                    value={trackData.audioUrl}
+                    onChange={(e) => setTrackData(prev => ({ ...prev, audioUrl: e.target.value }))}
+                    placeholder="Enter song URL (MP3, etc.)"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="trackDuration">Duration (seconds)</Label>
+                  <Input
+                    id="trackDuration"
+                    type="number"
+                    value={trackData.duration}
+                    onChange={(e) => setTrackData(prev => ({ ...prev, duration: parseInt(e.target.value) || 180 }))}
+                  />
+                </div>
+                
+                <Button 
+                  onClick={handleAddTrack}
+                  className="bg-music-primary text-black hover:bg-music-highlight w-full"
+                >
+                  Add Track
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
         
-        {/* Music Files Table */}
+        {/* Albums List */}
         <Card>
           <CardHeader>
-            <CardTitle>Music Files</CardTitle>
-            <CardDescription>Recent music files in your library.</CardDescription>
+            <CardTitle>Created Albums</CardTitle>
+            <CardDescription>Manage your created albums and add extra tracks.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="relative overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs uppercase bg-music-hover">
-                  <tr>
-                    <th scope="col" className="px-6 py-3">Title</th>
-                    <th scope="col" className="px-6 py-3">Artist</th>
-                    <th scope="col" className="px-6 py-3">Album</th>
-                    <th scope="col" className="px-6 py-3">Added</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
-                    Array(5).fill(0).map((_, index) => (
-                      <tr key={index} className="border-b border-music-hover">
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-40" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-32" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-28" /></td>
-                      </tr>
-                    ))
-                  ) : musicFiles.length > 0 ? (
-                    musicFiles.slice(0, 10).map((file) => (
-                      <tr key={file.id} className="border-b border-music-hover hover:bg-music-hover/50">
-                        <td className="px-6 py-4">{file.title}</td>
-                        <td className="px-6 py-4">{file.artist}</td>
-                        <td className="px-6 py-4">{file.album || "—"}</td>
-                        <td className="px-6 py-4">
-                          {new Date(file.created_at).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="px-6 py-6 text-center text-gray-400">
-                        No music files found. Sync with Backblaze to import files.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {albums.length > 0 ? (
+                albums.map((album) => (
+                  <div key={album.id} className="border rounded-lg p-4 bg-music-cardBg">
+                    <img 
+                      src={album.cover} 
+                      alt={album.title}
+                      className="w-full aspect-square object-cover rounded-md mb-3"
+                    />
+                    <h3 className="font-medium text-white mb-1">{album.title}</h3>
+                    <p className="text-sm text-gray-400 mb-2">{album.artist}</p>
+                    <p className="text-xs text-gray-500 mb-3">{album.trackCount} tracks</p>
+                    <Button
+                      size="sm"
+                      onClick={() => handleAddExtraTrack(album.id)}
+                      className="bg-music-primary text-black hover:bg-music-highlight w-full"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Track
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full text-center py-8">
+                  <p className="text-gray-400">No albums created yet. Create your first album!</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

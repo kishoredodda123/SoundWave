@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 // Types for music data
@@ -11,7 +12,7 @@ export interface Track {
   audioUrl: string;
   releaseDate?: string;
   genre?: string;
-  backblazeFileId?: string;
+  isLiked?: boolean;
 }
 
 export interface Album {
@@ -33,231 +34,11 @@ export interface Playlist {
   tracks: Track[];
 }
 
-// Function to transform Supabase music_files to Track objects
-const transformMusicFileToTrack = (file: any): Track => {
-  // Generate streaming URL through our edge function for private Backblaze files
-  let audioUrl = '';
-  
-  if (file.backblaze_file_name) {
-    // Use our secure streaming endpoint for private Backblaze files
-    const supabaseUrl = 'https://xfedtaajlodjzwphkenq.supabase.co';
-    audioUrl = `${supabaseUrl}/functions/v1/stream-audio?file=${encodeURIComponent(file.backblaze_file_name)}`;
-    console.log(`Generated streaming URL for ${file.title}: ${audioUrl}`);
-  } else if (file.audio_url) {
-    // Fallback to direct URL if available (for public files)
-    audioUrl = file.audio_url;
-  }
-
-  return {
-    id: file.id,
-    title: file.title || 'Unknown Title',
-    artist: file.artist || 'Unknown Artist',
-    album: file.album || 'Unknown Album',
-    duration: file.duration || 0,
-    cover: file.cover_url || 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    audioUrl: audioUrl,
-    releaseDate: file.release_date,
-    genre: file.genre,
-    backblazeFileId: file.backblaze_file_id
-  };
-};
-
-// Function to get music from Supabase (which will be synced with Backblaze)
-const getMusicFromBackblaze = async (): Promise<Track[]> => {
-  try {
-    console.log('Getting music from Supabase...');
-    const { data, error } = await supabase
-      .from('music_files')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching music files:', error);
-      // Return mock data as fallback during development
-      return mockTracks;
-    }
-    
-    if (data && data.length > 0) {
-      console.log(`Found ${data.length} music files in database`);
-      const tracks = data.map(transformMusicFileToTrack);
-      console.log('Transformed tracks with streaming URLs:', tracks.map(t => ({ 
-        title: t.title, 
-        audioUrl: t.audioUrl 
-      })));
-      // Add the public tracks to the beginning of the list
-      return [...publicTracks, ...tracks];
-    } else {
-      console.log('No music files found in database, returning public tracks');
-      return publicTracks;
-    }
-  } catch (error) {
-    console.error('Error in getMusicFromBackblaze:', error);
-    return publicTracks;
-  }
-};
-
-// Function to get featured playlists from Supabase
-const getFeaturedPlaylists = async (): Promise<Playlist[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('playlists')
-      .select(`
-        id,
-        title,
-        description,
-        cover_url,
-        playlist_tracks (
-          position,
-          music_files (*)
-        )
-      `);
-
-    if (error) {
-      console.error('Error fetching playlists:', error);
-      return mockPlaylists;
-    }
-
-    if (data && data.length > 0) {
-      return data.map((playlist: any) => {
-        const tracks = playlist.playlist_tracks
-          .sort((a: any, b: any) => a.position - b.position)
-          .map((item: any) => transformMusicFileToTrack(item.music_files));
-        
-        return {
-          id: playlist.id,
-          title: playlist.title,
-          description: playlist.description || '',
-          cover: playlist.cover_url || 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-          trackCount: tracks.length,
-          tracks: tracks
-        };
-      });
-    } else {
-      return mockPlaylists;
-    }
-  } catch (error) {
-    console.error('Error in getFeaturedPlaylists:', error);
-    return mockPlaylists;
-  }
-};
-
-// Function to get trending tracks
-const getTrendingTracks = async (): Promise<Track[]> => {
-  try {
-    // In a real app, you might have a view or algorithm to determine trending
-    // For now, we'll just get the most recently added tracks
-    const { data, error } = await supabase
-      .from('music_files')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(5);
-    
-    if (error) {
-      console.error('Error fetching trending tracks:', error);
-      return publicTracks.slice(0, 5);
-    }
-    
-    if (data && data.length > 0) {
-      const tracks = data.map(transformMusicFileToTrack);
-      return [...publicTracks, ...tracks.slice(0, 3)];
-    } else {
-      return publicTracks;
-    }
-  } catch (error) {
-    console.error('Error in getTrendingTracks:', error);
-    return publicTracks;
-  }
-};
-
-// Function to get recommended tracks based on user preferences
-const getRecommendedTracks = async (): Promise<Track[]> => {
-  try {
-    // In a real app with user preferences, you'd use a more sophisticated algorithm
-    // For now, we'll just get some random tracks
-    const { data, error } = await supabase
-      .from('music_files')
-      .select('*')
-      .limit(5);
-    
-    if (error) {
-      console.error('Error fetching recommended tracks:', error);
-      return [...publicTracks, ...mockTracks.slice(2, 5)];
-    }
-    
-    if (data && data.length > 0) {
-      const tracks = data.map(transformMusicFileToTrack);
-      return [...publicTracks, ...tracks.slice(0, 3)];
-    } else {
-      return [...publicTracks, ...mockTracks.slice(2, 5)];
-    }
-  } catch (error) {
-    console.error('Error in getRecommendedTracks:', error);
-    return [...publicTracks, ...mockTracks.slice(2, 5)];
-  }
-};
-
-// Function to search for tracks
-const searchTracks = async (query: string): Promise<Track[]> => {
-  if (!query) return [];
-  
-  try {
-    const normalizedQuery = query.toLowerCase();
-    
-    // First check if any public tracks match
-    const publicTrackMatches = publicTracks.filter(track => 
-      track.title.toLowerCase().includes(normalizedQuery) ||
-      track.artist.toLowerCase().includes(normalizedQuery) ||
-      track.album.toLowerCase().includes(normalizedQuery)
-    );
-    
-    const { data, error } = await supabase
-      .from('music_files')
-      .select('*')
-      .or(`title.ilike.%${normalizedQuery}%,artist.ilike.%${normalizedQuery}%,album.ilike.%${normalizedQuery}%`)
-      .limit(10);
-    
-    if (error) {
-      console.error('Error searching tracks:', error);
-      const mockResults = mockTracks.filter(
-        track => 
-          track.title.toLowerCase().includes(normalizedQuery) ||
-          track.artist.toLowerCase().includes(normalizedQuery) ||
-          track.album.toLowerCase().includes(normalizedQuery)
-      );
-      return [...publicTrackMatches, ...mockResults];
-    }
-    
-    if (data && data.length > 0) {
-      const dbResults = data.map(transformMusicFileToTrack);
-      return [...publicTrackMatches, ...dbResults];
-    } else {
-      // If no results in DB, fall back to mock data
-      const mockResults = mockTracks.filter(
-        track => 
-          track.title.toLowerCase().includes(normalizedQuery) ||
-          track.artist.toLowerCase().includes(normalizedQuery) ||
-          track.album.toLowerCase().includes(normalizedQuery)
-      );
-      return [...publicTrackMatches, ...mockResults];
-    }
-  } catch (error) {
-    console.error('Error in searchTracks:', error);
-    // Fall back to mock data filtering
-    const normalizedQuery = query.toLowerCase();
-    const mockResults = mockTracks.filter(
-      track => 
-        track.title.toLowerCase().includes(normalizedQuery) ||
-        track.artist.toLowerCase().includes(normalizedQuery) ||
-        track.album.toLowerCase().includes(normalizedQuery)
-    );
-    const publicTrackMatches = publicTracks.filter(track => 
-      track.title.toLowerCase().includes(normalizedQuery) ||
-      track.artist.toLowerCase().includes(normalizedQuery) ||
-      track.album.toLowerCase().includes(normalizedQuery)
-    );
-    return [...publicTrackMatches, ...mockResults];
-  }
-};
+// Local storage keys
+const LIKED_SONGS_KEY = 'liked_songs';
+const RECENTLY_PLAYED_KEY = 'recently_played';
+const PLAYLISTS_KEY = 'playlists';
+const ALBUMS_KEY = 'albums';
 
 // Public tracks with working audio URLs
 const publicTracks: Track[] = [
@@ -285,134 +66,180 @@ const publicTracks: Track[] = [
   }
 ];
 
-// Mock data for initial testing
-const mockTracks: Track[] = [
-  {
-    id: '1',
-    title: 'Blinding Lights',
-    artist: 'The Weeknd',
-    album: 'After Hours',
-    duration: 200,
-    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
-    releaseDate: '2020-03-20',
-    genre: 'Pop',
-  },
-  {
-    id: '2',
-    title: 'Save Your Tears',
-    artist: 'The Weeknd',
-    album: 'After Hours',
-    duration: 215,
-    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
-    releaseDate: '2020-03-20',
-    genre: 'Pop',
-  },
-  {
-    id: '3',
-    title: 'Starboy',
-    artist: 'The Weeknd, Daft Punk',
-    album: 'Starboy',
-    duration: 230,
-    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
-    releaseDate: '2016-11-25',
-    genre: 'Pop',
-  },
-  {
-    id: '4',
-    title: 'Memories',
-    artist: 'Maroon 5',
-    album: 'Jordi',
-    duration: 189,
-    cover: 'https://images.unsplash.com/photo-1500673922987-e212871fec22?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
-    releaseDate: '2019-09-20',
-    genre: 'Pop',
-  },
-  {
-    id: '5',
-    title: 'Bad Habits',
-    artist: 'Ed Sheeran',
-    album: '=',
-    duration: 230,
-    cover: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
-    releaseDate: '2021-06-25',
-    genre: 'Pop',
-  },
-  {
-    id: '6',
-    title: 'Stay',
-    artist: 'The Kid LAROI, Justin Bieber',
-    album: 'F*CK LOVE 3: OVER YOU',
-    duration: 141,
-    cover: 'https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav',
-    releaseDate: '2021-07-09',
-    genre: 'Pop',
-  },
-];
-
-// Mock featured playlists
-const mockPlaylists: Playlist[] = [
-  {
-    id: '1',
-    title: 'Top Hits',
-    description: 'The hottest tracks right now',
-    cover: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-    trackCount: 50,
-    tracks: [...publicTracks, ...mockTracks.slice(0, 3)],
-  },
-  {
-    id: '2',
-    title: 'Chill Vibes',
-    description: 'Relax and unwind with these smooth tunes',
-    cover: 'https://images.unsplash.com/photo-1500673922987-e212871fec22?auto=format&fit=crop&w=300&h=300',
-    trackCount: 40,
-    tracks: mockTracks.slice(2, 5),
-  },
-  {
-    id: '3',
-    title: 'Workout Mix',
-    description: 'Get pumped with high-energy tracks',
-    cover: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=300&h=300',
-    trackCount: 35,
-    tracks: mockTracks.slice(1, 4),
-  },
-];
-
-// Function to sync music from Backblaze to Supabase
-const syncBackblazeToSupabase = async () => {
+// Helper functions for local storage
+const getFromStorage = (key: string) => {
   try {
-    console.log('Syncing Backblaze to Supabase...');
-    
-    const { data, error } = await supabase.functions.invoke('sync-backblaze', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-    
-    if (error) {
-      throw new Error(`Error syncing music: ${error.message}`);
-    }
-    
-    console.log('Sync result:', data);
-    
-    return data;
-  } catch (error) {
-    console.error('Error in syncBackblazeToSupabase:', error);
-    throw error;
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : [];
+  } catch {
+    return [];
   }
 };
 
+const saveToStorage = (key: string, data: any) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (error) {
+    console.error('Failed to save to localStorage:', error);
+  }
+};
+
+// Function to get all tracks (public + albums)
+const getAllTracks = (): Track[] => {
+  const albums: Album[] = getFromStorage(ALBUMS_KEY);
+  const albumTracks = albums.flatMap(album => album.tracks);
+  return [...publicTracks, ...albumTracks];
+};
+
+// Function to add track to recently played
+const addToRecentlyPlayed = (track: Track) => {
+  const recentlyPlayed: Track[] = getFromStorage(RECENTLY_PLAYED_KEY);
+  const filtered = recentlyPlayed.filter(t => t.id !== track.id);
+  const updated = [track, ...filtered].slice(0, 10); // Keep only last 10
+  saveToStorage(RECENTLY_PLAYED_KEY, updated);
+};
+
+// Function to get recently played tracks
+const getRecentlyPlayed = (): Track[] => {
+  return getFromStorage(RECENTLY_PLAYED_KEY);
+};
+
+// Function to toggle like status
+const toggleLikeTrack = (track: Track): boolean => {
+  const likedSongs: Track[] = getFromStorage(LIKED_SONGS_KEY);
+  const isLiked = likedSongs.some(t => t.id === track.id);
+  
+  if (isLiked) {
+    const updated = likedSongs.filter(t => t.id !== track.id);
+    saveToStorage(LIKED_SONGS_KEY, updated);
+    return false;
+  } else {
+    const updated = [...likedSongs, { ...track, isLiked: true }];
+    saveToStorage(LIKED_SONGS_KEY, updated);
+    return true;
+  }
+};
+
+// Function to get liked songs
+const getLikedSongs = (): Track[] => {
+  return getFromStorage(LIKED_SONGS_KEY);
+};
+
+// Function to check if track is liked
+const isTrackLiked = (trackId: string): boolean => {
+  const likedSongs: Track[] = getFromStorage(LIKED_SONGS_KEY);
+  return likedSongs.some(t => t.id === trackId);
+};
+
+// Function to create album
+const createAlbum = (albumData: Omit<Album, 'id'>) => {
+  const albums: Album[] = getFromStorage(ALBUMS_KEY);
+  const newAlbum: Album = {
+    ...albumData,
+    id: Date.now().toString(),
+  };
+  const updated = [...albums, newAlbum];
+  saveToStorage(ALBUMS_KEY, updated);
+  return newAlbum;
+};
+
+// Function to add track to album
+const addTrackToAlbum = (albumId: string, track: Omit<Track, 'id'>) => {
+  const albums: Album[] = getFromStorage(ALBUMS_KEY);
+  const albumIndex = albums.findIndex(a => a.id === albumId);
+  
+  if (albumIndex !== -1) {
+    const newTrack: Track = {
+      ...track,
+      id: `${albumId}-${Date.now()}`,
+    };
+    
+    albums[albumIndex].tracks.push(newTrack);
+    albums[albumIndex].trackCount = albums[albumIndex].tracks.length;
+    saveToStorage(ALBUMS_KEY, albums);
+    return newTrack;
+  }
+  
+  return null;
+};
+
+// Function to get albums
+const getAlbums = (): Album[] => {
+  return getFromStorage(ALBUMS_KEY);
+};
+
+// Function to get featured playlists (only show user-created playlists)
+const getFeaturedPlaylists = async (): Promise<Playlist[]> => {
+  return getFromStorage(PLAYLISTS_KEY);
+};
+
+// Function to create playlist
+const createPlaylist = (playlistData: Omit<Playlist, 'id'>) => {
+  const playlists: Playlist[] = getFromStorage(PLAYLISTS_KEY);
+  const newPlaylist: Playlist = {
+    ...playlistData,
+    id: Date.now().toString(),
+  };
+  const updated = [...playlists, newPlaylist];
+  saveToStorage(PLAYLISTS_KEY, updated);
+  return newPlaylist;
+};
+
+// Function to add track to playlist
+const addTrackToPlaylist = (playlistId: string, track: Track) => {
+  const playlists: Playlist[] = getFromStorage(PLAYLISTS_KEY);
+  const playlistIndex = playlists.findIndex(p => p.id === playlistId);
+  
+  if (playlistIndex !== -1) {
+    const isAlreadyInPlaylist = playlists[playlistIndex].tracks.some(t => t.id === track.id);
+    if (!isAlreadyInPlaylist) {
+      playlists[playlistIndex].tracks.push(track);
+      playlists[playlistIndex].trackCount = playlists[playlistIndex].tracks.length;
+      saveToStorage(PLAYLISTS_KEY, playlists);
+    }
+  }
+};
+
+// Function to get trending tracks
+const getTrendingTracks = async (): Promise<Track[]> => {
+  const allTracks = getAllTracks();
+  return allTracks.slice(0, 5);
+};
+
+// Function to get recommended tracks
+const getRecommendedTracks = async (): Promise<Track[]> => {
+  const allTracks = getAllTracks();
+  return allTracks.slice(0, 5);
+};
+
+// Function to search for tracks
+const searchTracks = async (query: string): Promise<Track[]> => {
+  if (!query) return [];
+  
+  const normalizedQuery = query.toLowerCase();
+  const allTracks = getAllTracks();
+  
+  return allTracks.filter(track => 
+    track.title.toLowerCase().includes(normalizedQuery) ||
+    track.artist.toLowerCase().includes(normalizedQuery) ||
+    track.album.toLowerCase().includes(normalizedQuery)
+  );
+};
+
 export const musicService = {
-  getMusicFromBackblaze,
+  getAllTracks,
   getFeaturedPlaylists,
   getTrendingTracks,
   getRecommendedTracks,
   searchTracks,
-  syncBackblazeToSupabase,
+  addToRecentlyPlayed,
+  getRecentlyPlayed,
+  toggleLikeTrack,
+  getLikedSongs,
+  isTrackLiked,
+  createAlbum,
+  addTrackToAlbum,
+  getAlbums,
+  createPlaylist,
+  addTrackToPlaylist,
 };
