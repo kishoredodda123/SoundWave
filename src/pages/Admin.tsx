@@ -14,7 +14,6 @@ const Admin = () => {
   const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
   const [albumData, setAlbumData] = useState({
     title: '',
-    artist: '',
     cover: '',
     numberOfSongs: 1,
     releaseDate: new Date().toISOString().split('T')[0]
@@ -23,16 +22,15 @@ const Admin = () => {
   const [trackData, setTrackData] = useState({
     title: '',
     artist: '',
-    audioUrl: '',
-    duration: 180
+    audioUrl: ''
   });
   const [trackIndex, setTrackIndex] = useState(0);
 
   const handleCreateAlbum = () => {
-    if (!albumData.title || !albumData.artist) {
+    if (!albumData.title) {
       toast({
         title: "Error",
-        description: "Please fill in album title and artist.",
+        description: "Please fill in album title.",
         variant: "destructive",
       });
       return;
@@ -40,7 +38,7 @@ const Admin = () => {
 
     const newAlbum = musicService.createAlbum({
       title: albumData.title,
-      artist: albumData.artist,
+      artist: 'Various Artists', // Default artist for album
       cover: albumData.cover || 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
       releaseDate: albumData.releaseDate,
       trackCount: 0,
@@ -58,7 +56,6 @@ const Admin = () => {
 
     setAlbumData({
       title: '',
-      artist: '',
       cover: '',
       numberOfSongs: 1,
       releaseDate: new Date().toISOString().split('T')[0]
@@ -75,12 +72,14 @@ const Admin = () => {
       return;
     }
 
+    const currentAlbum = musicService.getAlbums().find(a => a.id === currentAlbumId);
+    
     const track = musicService.addTrackToAlbum(currentAlbumId, {
       title: trackData.title,
       artist: trackData.artist,
-      album: albums.find(a => a.id === currentAlbumId)?.title || '',
-      duration: trackData.duration,
-      cover: albums.find(a => a.id === currentAlbumId)?.cover || '',
+      album: currentAlbum?.title || '',
+      duration: 180, // Default duration, will be updated when audio loads
+      cover: currentAlbum?.cover || '', // Use album cover for the song
       audioUrl: trackData.audioUrl,
       genre: 'Album Track'
     });
@@ -90,8 +89,7 @@ const Admin = () => {
       setTrackData({
         title: '',
         artist: '',
-        audioUrl: '',
-        duration: 180
+        audioUrl: ''
       });
 
       toast({
@@ -102,11 +100,11 @@ const Admin = () => {
       // Refresh albums list
       setAlbums(musicService.getAlbums());
 
-      const currentAlbum = musicService.getAlbums().find(a => a.id === currentAlbumId);
-      if (currentAlbum && trackIndex + 1 >= albumData.numberOfSongs) {
+      const updatedAlbum = musicService.getAlbums().find(a => a.id === currentAlbumId);
+      if (updatedAlbum && trackIndex + 1 >= albumData.numberOfSongs) {
         toast({
           title: "Album Complete",
-          description: `Album "${currentAlbum.title}" is complete with ${currentAlbum.trackCount} tracks.`,
+          description: `Album "${updatedAlbum.title}" is complete with ${updatedAlbum.trackCount} tracks.`,
         });
         setCurrentAlbumId(null);
         setTrackIndex(0);
@@ -161,17 +159,7 @@ const Admin = () => {
                   </div>
                   
                   <div>
-                    <Label htmlFor="albumArtist">Artist</Label>
-                    <Input
-                      id="albumArtist"
-                      value={albumData.artist}
-                      onChange={(e) => setAlbumData(prev => ({ ...prev, artist: e.target.value }))}
-                      placeholder="Enter artist name"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="albumCover">Cover URL (optional)</Label>
+                    <Label htmlFor="albumCover">Cover URL</Label>
                     <Input
                       id="albumCover"
                       value={albumData.cover}
@@ -253,16 +241,6 @@ const Admin = () => {
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="trackDuration">Duration (seconds)</Label>
-                  <Input
-                    id="trackDuration"
-                    type="number"
-                    value={trackData.duration}
-                    onChange={(e) => setTrackData(prev => ({ ...prev, duration: parseInt(e.target.value) || 180 }))}
-                  />
-                </div>
-                
                 <Button 
                   onClick={handleAddTrack}
                   className="bg-music-primary text-black hover:bg-music-highlight w-full"
@@ -291,7 +269,6 @@ const Admin = () => {
                       className="w-full aspect-square object-cover rounded-md mb-3"
                     />
                     <h3 className="font-medium text-white mb-1">{album.title}</h3>
-                    <p className="text-sm text-gray-400 mb-2">{album.artist}</p>
                     <p className="text-xs text-gray-500 mb-3">{album.trackCount} tracks</p>
                     <Button
                       size="sm"

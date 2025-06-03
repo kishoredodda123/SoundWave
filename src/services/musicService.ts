@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // Types for music data
@@ -144,14 +143,18 @@ const createAlbum = (albumData: Omit<Album, 'id'>) => {
 };
 
 // Function to add track to album
-const addTrackToAlbum = (albumId: string, track: Omit<Track, 'id'>) => {
+const addTrackToAlbum = async (albumId: string, track: Omit<Track, 'id' | 'duration'>) => {
   const albums: Album[] = getFromStorage(ALBUMS_KEY);
   const albumIndex = albums.findIndex(a => a.id === albumId);
   
   if (albumIndex !== -1) {
+    // Get duration from audio file
+    const duration = await getAudioDuration(track.audioUrl);
+    
     const newTrack: Track = {
       ...track,
       id: `${albumId}-${Date.now()}`,
+      duration: duration,
     };
     
     albums[albumIndex].tracks.push(newTrack);
@@ -224,6 +227,20 @@ const searchTracks = async (query: string): Promise<Track[]> => {
     track.artist.toLowerCase().includes(normalizedQuery) ||
     track.album.toLowerCase().includes(normalizedQuery)
   );
+};
+
+// Function to get audio duration from URL
+const getAudioDuration = (audioUrl: string): Promise<number> => {
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    audio.addEventListener('loadedmetadata', () => {
+      resolve(audio.duration || 180); // Fallback to 3 minutes if can't detect
+    });
+    audio.addEventListener('error', () => {
+      resolve(180); // Fallback duration on error
+    });
+    audio.src = audioUrl;
+  });
 };
 
 export const musicService = {

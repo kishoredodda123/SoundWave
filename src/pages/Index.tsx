@@ -3,14 +3,18 @@ import MainLayout from '@/components/layout/MainLayout';
 import FeaturedSection from '@/components/sections/FeaturedSection';
 import TrendingSection from '@/components/sections/TrendingSection';
 import { useState, useEffect } from 'react';
-import { musicService, Track } from '@/services/musicService';
+import { musicService, Track, Album } from '@/services/musicService';
 import TrackCard from '@/components/music/TrackCard';
+import AlbumCard from '@/components/music/AlbumCard';
+import { Link } from 'react-router-dom';
 
 const Index = () => {
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
 
   useEffect(() => {
     setRecentlyPlayed(musicService.getRecentlyPlayed());
+    setAlbums(musicService.getAlbums().slice(0, 6)); // Show up to 6 albums
   }, []);
 
   return (
@@ -24,6 +28,25 @@ const Index = () => {
             Explore Now
           </button>
         </div>
+
+        {/* Featured Albums */}
+        {albums.length > 0 && (
+          <section className="mb-10">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">Featured Albums</h2>
+              <Link to="/albums" className="text-sm text-music-primary hover:underline">View All</Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+              {albums.map((album) => (
+                <AlbumCard 
+                  key={album.id} 
+                  album={album}
+                  onClick={() => window.location.href = `/albums/${album.id}`}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Featured Section */}
         <section className="mb-10">
