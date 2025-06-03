@@ -62,7 +62,7 @@ const Admin = () => {
     });
   };
 
-  const handleAddTrack = () => {
+  const handleAddTrack = async () => {
     if (!currentAlbumId || !trackData.title || !trackData.artist || !trackData.audioUrl) {
       toast({
         title: "Error",
@@ -74,11 +74,10 @@ const Admin = () => {
 
     const currentAlbum = musicService.getAlbums().find(a => a.id === currentAlbumId);
     
-    const track = musicService.addTrackToAlbum(currentAlbumId, {
+    const track = await musicService.addTrackToAlbum(currentAlbumId, {
       title: trackData.title,
       artist: trackData.artist,
       album: currentAlbum?.title || '',
-      duration: 180, // Default duration, will be updated when audio loads
       cover: currentAlbum?.cover || '', // Use album cover for the song
       audioUrl: trackData.audioUrl,
       genre: 'Album Track'
