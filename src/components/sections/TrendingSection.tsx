@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Track } from '@/services/musicService';
 import { musicService } from '@/services/musicService';
-import TrackCard from '@/components/music/TrackCard';
+import TrackCarousel from '@/components/ui/track-carousel';
 
 const TrendingSection = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -27,7 +27,7 @@ const TrendingSection = () => {
   if (loading) {
     return (
       <div className="space-y-3 mt-4">
-        {[...Array(5)].map((_, index) => (
+        {[...Array(3)].map((_, index) => (
           <div key={index} className="animate-pulse flex items-center p-3">
             <div className="bg-music-hover h-12 w-12 rounded mr-4"></div>
             <div className="flex-1">
@@ -40,17 +40,7 @@ const TrendingSection = () => {
     );
   }
 
-  return (
-    <div className="space-y-1 mt-4">
-      {tracks.map((track) => (
-        <TrackCard 
-          key={track.id} 
-          track={track} 
-          playlist={tracks}
-        />
-      ))}
-    </div>
-  );
+  return <TrackCarousel tracks={tracks} title="Trending Now" />;
 };
 
 export default TrendingSection;

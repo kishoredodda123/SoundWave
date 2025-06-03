@@ -243,6 +243,45 @@ const getAudioDuration = (audioUrl: string): Promise<number> => {
   });
 };
 
+// Function to update album
+const updateAlbum = (albumId: string, updates: { title?: string; cover?: string }) => {
+  const albums: Album[] = getFromStorage(ALBUMS_KEY);
+  const albumIndex = albums.findIndex(a => a.id === albumId);
+  
+  if (albumIndex !== -1) {
+    albums[albumIndex] = { ...albums[albumIndex], ...updates };
+    // Update cover for all tracks in the album if cover is updated
+    if (updates.cover) {
+      albums[albumIndex].tracks = albums[albumIndex].tracks.map(track => ({
+        ...track,
+        cover: updates.cover!
+      }));
+    }
+    // Update album name for all tracks if title is updated
+    if (updates.title) {
+      albums[albumIndex].tracks = albums[albumIndex].tracks.map(track => ({
+        ...track,
+        album: updates.title!
+      }));
+    }
+    saveToStorage(ALBUMS_KEY, albums);
+  }
+};
+
+// Function to update track
+const updateTrack = (trackId: string, updates: { title?: string; artist?: string; audioUrl?: string }) => {
+  const albums: Album[] = getFromStorage(ALBUMS_KEY);
+  
+  for (let album of albums) {
+    const trackIndex = album.tracks.findIndex(t => t.id === trackId);
+    if (trackIndex !== -1) {
+      album.tracks[trackIndex] = { ...album.tracks[trackIndex], ...updates };
+      saveToStorage(ALBUMS_KEY, albums);
+      break;
+    }
+  }
+};
+
 export const musicService = {
   getAllTracks,
   getFeaturedPlaylists,
@@ -259,4 +298,6 @@ export const musicService = {
   getAlbums,
   createPlaylist,
   addTrackToPlaylist,
+  updateAlbum,
+  updateTrack,
 };

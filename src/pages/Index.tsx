@@ -2,9 +2,9 @@
 import MainLayout from '@/components/layout/MainLayout';
 import FeaturedSection from '@/components/sections/FeaturedSection';
 import TrendingSection from '@/components/sections/TrendingSection';
+import TrackCarousel from '@/components/ui/track-carousel';
 import { useState, useEffect } from 'react';
 import { musicService, Track, Album } from '@/services/musicService';
-import TrackCard from '@/components/music/TrackCard';
 import AlbumCard from '@/components/music/AlbumCard';
 import { Link } from 'react-router-dom';
 
@@ -59,32 +59,19 @@ const Index = () => {
         
         {/* Trending Section */}
         <section className="mb-10">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">Trending Now</h2>
-            <button className="text-sm text-music-primary hover:underline">View All</button>
-          </div>
           <TrendingSection />
         </section>
         
         {/* Recently Played */}
         <section className="mb-10">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">Recently Played</h2>
-            <button className="text-sm text-music-primary hover:underline">View All</button>
-          </div>
           {recentlyPlayed.length > 0 ? (
-            <div className="space-y-1">
-              {recentlyPlayed.map((track) => (
-                <TrackCard 
-                  key={track.id} 
-                  track={track} 
-                  playlist={recentlyPlayed}
-                />
-              ))}
-            </div>
+            <TrackCarousel tracks={recentlyPlayed} title="Recently Played" />
           ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-400">No recently played songs. Start listening to see your history here!</p>
+            <div>
+              <h2 className="text-2xl font-bold mb-4">Recently Played</h2>
+              <div className="text-center py-8">
+                <p className="text-gray-400">No recently played songs. Start listening to see your history here!</p>
+              </div>
             </div>
           )}
         </section>
