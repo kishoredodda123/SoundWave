@@ -1,6 +1,5 @@
-
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, RotateCcw, RotateCw } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Track } from '@/services/musicService';
 import { toast } from "@/hooks/use-toast";
@@ -51,6 +50,25 @@ const MusicPlayer = ({
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  // Add 10-second skip functions
+  const skipForward = () => {
+    const audio = audioRef.current;
+    if (audio && !audioError && duration > 0) {
+      const newTime = Math.min(currentTime + 10, duration);
+      audio.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
+  const skipBackward = () => {
+    const audio = audioRef.current;
+    if (audio && !audioError) {
+      const newTime = Math.max(currentTime - 10, 0);
+      audio.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
   };
 
   // Try to load audio with the given URL
@@ -388,14 +406,24 @@ const MusicPlayer = ({
         
         {/* Player Controls */}
         <div className="flex flex-col w-full md:w-1/2 md:px-4">
-          <div className="flex justify-center items-center space-x-4 mb-3">
+          <div className="flex justify-center items-center space-x-3 mb-3">
             <button 
-              className="text-gray-400 hover:text-white disabled:opacity-50"
+              className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
               onClick={onPrevious}
               disabled={!onPrevious}
             >
               <SkipBack className="h-5 w-5" />
             </button>
+            
+            <button 
+              className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+              onClick={skipBackward}
+              disabled={!currentTrack?.audioUrl || audioError}
+              title="Skip back 10 seconds"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+            
             <button 
               className={`bg-red-600 rounded-full p-2 text-white hover:scale-105 transition disabled:opacity-50 ${
                 audioLoading ? 'animate-pulse' : ''
@@ -405,8 +433,18 @@ const MusicPlayer = ({
             >
               {isPlaying && !audioError && !audioLoading ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </button>
+            
             <button 
-              className="text-gray-400 hover:text-white disabled:opacity-50"
+              className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+              onClick={skipForward}
+              disabled={!currentTrack?.audioUrl || audioError}
+              title="Skip forward 10 seconds"
+            >
+              <RotateCw className="h-4 w-4" />
+            </button>
+            
+            <button 
+              className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
               onClick={onNext}
               disabled={!onNext}
             >
@@ -422,7 +460,7 @@ const MusicPlayer = ({
                 max={effectiveDuration}
                 step={1}
                 onValueChange={handleSeek}
-                className="cursor-pointer"
+                className="cursor-pointer progress-slider"
                 disabled={effectiveDuration === 0 || audioError}
               />
             </div>
@@ -439,7 +477,7 @@ const MusicPlayer = ({
               max={100}
               step={1}
               onValueChange={(values) => setVolume(values[0])}
-              className="cursor-pointer"
+              className="cursor-pointer volume-slider"
             />
           </div>
         </div>
