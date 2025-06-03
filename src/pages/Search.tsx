@@ -39,23 +39,23 @@ const Search = () => {
 
   return (
     <MainLayout>
-      <div className="px-6 py-8">
-        <h1 className="text-3xl font-bold mb-6">Search</h1>
+      <div className="px-4 md:px-6 py-4 md:py-8">
+        <h1 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">Search</h1>
         
-        <div className="relative mb-8">
-          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        <div className="relative mb-6 md:mb-8">
+          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 md:h-5 md:w-5" />
           <Input
             type="text"
             placeholder="Search for songs, artists, or albums..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-music-cardBg border-gray-700 text-white placeholder:text-gray-400 focus:ring-music-primary focus:border-music-primary rounded-full py-6"
+            className="pl-10 bg-music-cardBg border-gray-700 text-white placeholder:text-gray-400 focus:ring-music-primary focus:border-music-primary rounded-full py-4 md:py-6 text-sm md:text-base"
           />
         </div>
         
         {searchQuery.trim().length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">
               {isSearching ? 'Searching...' : `Results for "${searchQuery}"`}
             </h2>
             
@@ -63,10 +63,10 @@ const Search = () => {
               <div className="space-y-3">
                 {[...Array(3)].map((_, index) => (
                   <div key={index} className="animate-pulse flex items-center p-3">
-                    <div className="bg-music-hover h-12 w-12 rounded mr-4"></div>
+                    <div className="bg-music-hover h-10 w-10 md:h-12 md:w-12 rounded mr-3 md:mr-4"></div>
                     <div className="flex-1">
-                      <div className="bg-music-hover h-4 w-3/4 rounded mb-2"></div>
-                      <div className="bg-music-hover h-3 w-1/2 rounded"></div>
+                      <div className="bg-music-hover h-3 md:h-4 w-3/4 rounded mb-2"></div>
+                      <div className="bg-music-hover h-2 md:h-3 w-1/2 rounded"></div>
                     </div>
                   </div>
                 ))}
@@ -78,48 +78,25 @@ const Search = () => {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 text-gray-400">
-                <SearchIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">No results found for "{searchQuery}"</p>
-                <p className="text-sm mt-2">Try searching for something else</p>
+              <div className="text-center py-8 md:py-12 text-gray-400">
+                <SearchIcon className="h-8 w-8 md:h-12 md:w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-base md:text-lg">No results found for "{searchQuery}"</p>
+                <p className="text-xs md:text-sm mt-2">Try searching for something else</p>
               </div>
             )}
           </div>
         )}
         
         {searchQuery.trim().length === 0 && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Browse Categories</h2>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              {['Pop', 'Rock', 'Hip Hop', 'R&B', 'Electronic', 'Classical', 'Jazz', 'Country', 'Metal', 'Indie', 'Folk', 'Reggae'].map((genre) => (
-                <div 
-                  key={genre}
-                  className="relative overflow-hidden rounded-md aspect-square cursor-pointer transform transition-transform hover:scale-105"
-                  style={{ 
-                    background: `linear-gradient(45deg, ${getRandomColor()}, ${getRandomColor()})`,
-                  }}
-                >
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <h3 className="text-white font-bold text-lg">{genre}</h3>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="text-center py-8 md:py-12 text-gray-400">
+            <SearchIcon className="h-8 w-8 md:h-12 md:w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-base md:text-lg">Start typing to search for music</p>
+            <p className="text-xs md:text-sm mt-2">Find your favorite songs, artists, and albums</p>
           </div>
         )}
       </div>
     </MainLayout>
   );
-};
-
-// Helper function to generate random colors for genre cards
-const getRandomColor = () => {
-  const colors = [
-    '#1DB954', '#FF5500', '#1E3264', '#7D4698', '#E8115B', 
-    '#148A08', '#BC5900', '#8D67AB', '#B49BC8', '#509BF5'
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
 };
 
 export default Search;
