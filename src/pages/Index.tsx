@@ -1,6 +1,8 @@
+
 import MainLayout from '@/components/layout/MainLayout';
 import FeaturedSection from '@/components/sections/FeaturedSection';
 import TrendingSection from '@/components/sections/TrendingSection';
+
 const Index = () => {
   return <MainLayout>
       <div className="px-6 py-8">
@@ -38,10 +40,16 @@ const Index = () => {
             <button className="text-sm text-music-primary hover:underline">View All</button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {[1, 2, 3, 4, 5, 6].map(item => {})}
+            {[1, 2, 3, 4, 5, 6].map(item => (
+              <div key={item} className="aspect-square bg-music-cardBg rounded-md p-4 hover:bg-music-hover transition-colors cursor-pointer">
+                <div className="w-full h-3/4 bg-music-hover rounded mb-2"></div>
+                <div className="text-sm text-gray-300">Recent Track {item}</div>
+              </div>
+            ))}
           </div>
         </section>
       </div>
     </MainLayout>;
 };
+
 export default Index;
