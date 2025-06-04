@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { MusicPlayerProvider } from '@/contexts/MusicPlayerContext';
+import MainLayout from '@/components/layout/MainLayout';
 import Index from '@/pages/Index';
 import Search from '@/pages/Search';
 import LikedSongs from '@/pages/LikedSongs';
@@ -21,20 +22,22 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <MusicPlayerProvider>
         <Router>
-          <div className="min-h-screen w-full bg-music-darkBg text-white">
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/liked-songs" element={<LikedSongs />} />
-              <Route path="/create-playlist" element={<CreatePlaylist />} />
-              <Route path="/library" element={<Library />} />
-              <Route path="/albums" element={<Albums />} />
-              <Route path="/albums/:albumId" element={<AlbumDetail />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+          <div className="h-screen w-screen overflow-hidden bg-music-darkBg text-white">
+            <MainLayout>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/search" element={<Search />} />
+                <Route path="/liked-songs" element={<LikedSongs />} />
+                <Route path="/create-playlist" element={<CreatePlaylist />} />
+                <Route path="/library" element={<Library />} />
+                <Route path="/albums" element={<Albums />} />
+                <Route path="/albums/:albumId" element={<AlbumDetail />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </MainLayout>
+            <Toaster />
           </div>
-          <Toaster />
         </Router>
       </MusicPlayerProvider>
     </QueryClientProvider>
