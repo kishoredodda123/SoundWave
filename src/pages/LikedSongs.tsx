@@ -1,17 +1,29 @@
-
 import { useEffect, useState } from 'react';
-import { Heart } from 'lucide-react';
+import { Heart, Loader2 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import TrackCard from '@/components/music/TrackCard';
 import { Track, musicService } from '@/services/musicService';
+import { toast } from "@/components/ui/use-toast";
 
 const LikedSongs = () => {
   const [likedTracks, setLikedTracks] = useState<Track[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadLikedSongs = () => {
-      const liked = musicService.getLikedSongs();
-      setLikedTracks(liked);
+    const loadLikedSongs = async () => {
+      try {
+        const liked = await musicService.getLikedSongs();
+        setLikedTracks(liked);
+      } catch (error) {
+        console.error('Error loading liked songs:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load liked songs. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
     };
     
     loadLikedSongs();
@@ -42,7 +54,11 @@ const LikedSongs = () => {
           </div>
         </div>
         
-        {likedTracks.length > 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-music-primary" />
+          </div>
+        ) : likedTracks.length > 0 ? (
           <div className="mt-8 space-y-1">
             {likedTracks.map((track) => (
               <TrackCard 

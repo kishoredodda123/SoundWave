@@ -60,6 +60,58 @@ export type Database = {
         }
         Relationships: []
       }
+      liked_tracks: {
+        Row: {
+          id: string
+          track_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          track_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          track_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liked_tracks_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: false
+            referencedRelation: "music_files"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      recently_played: {
+        Row: {
+          id: string
+          track_id: string
+          played_at: string
+        }
+        Insert: {
+          id?: string
+          track_id: string
+          played_at?: string
+        }
+        Update: {
+          id?: string
+          track_id?: string
+          played_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recently_played_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: false
+            referencedRelation: "music_files"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       playlist_tracks: {
         Row: {
           created_at: string
@@ -96,7 +148,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "music_files"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
       playlists: {

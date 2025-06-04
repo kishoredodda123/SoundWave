@@ -1,4 +1,3 @@
-
 import { Play, Heart } from 'lucide-react';
 import { Track } from '@/services/musicService';
 import { useMusicPlayerContext } from '@/contexts/MusicPlayerContext';
@@ -8,14 +7,26 @@ import { useState, useEffect } from 'react';
 interface TrackCardProps {
   track: Track;
   playlist?: Track[];
+  index?: number;
+  onClick?: () => void;
 }
 
-const TrackCard = ({ track, playlist }: TrackCardProps) => {
+const TrackCard = ({ track, playlist, index, onClick }: TrackCardProps) => {
   const { playTrack } = useMusicPlayerContext();
   const [isLiked, setIsLiked] = useState(false);
+  const [isLikeLoading, setIsLikeLoading] = useState(false);
 
   useEffect(() => {
-    setIsLiked(musicService.isTrackLiked(track.id));
+    const checkLikeStatus = async () => {
+      try {
+        const liked = await musicService.isTrackLiked(track.id);
+        setIsLiked(liked);
+      } catch (error) {
+        console.error('Error checking like status:', error);
+      }
+    };
+
+    checkLikeStatus();
   }, [track.id]);
 
   // Format duration to MM:SS
@@ -26,15 +37,28 @@ const TrackCard = ({ track, playlist }: TrackCardProps) => {
   };
 
   const handlePlay = () => {
-    console.log('🎯 TrackCard handlePlay called for:', track.title);
-    musicService.addToRecentlyPlayed(track);
-    playTrack(track, playlist);
+    if (onClick) {
+      onClick();
+    } else {
+      console.log('🎯 TrackCard handlePlay called for:', track.title);
+      musicService.addToRecentlyPlayed(track);
+      playTrack(track, playlist);
+    }
   };
 
-  const handleLike = (e: React.MouseEvent) => {
+  const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering play
-    const newLikedStatus = musicService.toggleLikeTrack(track);
-    setIsLiked(newLikedStatus);
+    if (isLikeLoading) return;
+
+    setIsLikeLoading(true);
+    try {
+      const newLikedStatus = await musicService.toggleLikeTrack(track);
+      setIsLiked(newLikedStatus);
+    } catch (error) {
+      console.error('Error toggling like status:', error);
+    } finally {
+      setIsLikeLoading(false);
+    }
   };
 
   return (
@@ -42,6 +66,11 @@ const TrackCard = ({ track, playlist }: TrackCardProps) => {
       className="group flex items-center p-3 rounded-md hover:bg-music-hover transition-colors cursor-pointer"
       onClick={handlePlay}
     >
+      {index !== undefined && (
+        <div className="w-8 text-center text-gray-400 text-sm mr-4">
+          {index}
+        </div>
+      )}
       <div className="relative flex-shrink-0 mr-4">
         <img 
           src={track.cover} 
@@ -59,11 +88,12 @@ const TrackCard = ({ track, playlist }: TrackCardProps) => {
       <div className="flex items-center gap-3 ml-4">
         <button
           onClick={handleLike}
+          disabled={isLikeLoading}
           className={`p-1 rounded-full transition-colors ${
             isLiked 
               ? 'text-red-500 hover:text-red-400' 
               : 'text-gray-400 hover:text-white'
-          }`}
+          } ${isLikeLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
         </button>

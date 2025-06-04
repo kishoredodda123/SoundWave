@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Music, Album as AlbumIcon, Edit2, Save, X } from "lucide-react";
+import { Plus, Music, Album as AlbumIcon, Edit2, Save, X, Loader2 } from "lucide-react";
 import MainLayout from '@/components/layout/MainLayout';
 import { musicService, Album } from '@/services/musicService';
 
 const Admin = () => {
   const [albums, setAlbums] = useState<Album[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
   const [albumData, setAlbumData] = useState({
     title: '',
@@ -29,16 +30,28 @@ const Admin = () => {
   const [editAlbumData, setEditAlbumData] = useState({ title: '', cover: '' });
   const [editTrackData, setEditTrackData] = useState({ title: '', artist: '', audioUrl: '' });
 
-  const loadAlbums = () => {
-    setAlbums(musicService.getAlbums());
+  const loadAlbums = async () => {
+    try {
+      const fetchedAlbums = await musicService.getAlbums();
+      setAlbums(fetchedAlbums);
+    } catch (error) {
+      console.error('Error loading albums:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load albums. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Load albums when component mounts
-  useState(() => {
+  useEffect(() => {
     loadAlbums();
-  });
+  }, []);
 
-  const handleCreateAlbum = () => {
+  const handleCreateAlbum = async () => {
     if (!albumData.title) {
       toast({
         title: "Error",
@@ -48,31 +61,62 @@ const Admin = () => {
       return;
     }
 
-    const newAlbum = musicService.createAlbum({
-      title: albumData.title,
-      artist: 'Various Artists',
-      cover: albumData.cover || 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
-      releaseDate: albumData.releaseDate,
-      trackCount: 0,
-      tracks: []
-    });
+    setIsLoading(true);
+    try {
+      // Validate the cover URL if provided
+      if (albumData.cover) {
+        try {
+          new URL(albumData.cover);
+        } catch (e) {
+          toast({
+            title: "Error",
+            description: "Please enter a valid cover image URL.",
+            variant: "destructive",
+          });
+          setIsLoading(false);
+          return;
+        }
+      }
 
-    setCurrentAlbumId(newAlbum.id);
-    setTrackIndex(0);
-    setIsCreatingAlbum(false);
-    loadAlbums();
-    
-    toast({
-      title: "Album Created",
-      description: `Album "${albumData.title}" created successfully. Now add songs to it.`,
-    });
+      const newAlbum = await musicService.createAlbum({
+        title: albumData.title.trim(),
+        artist: 'Various Artists',
+        cover: albumData.cover?.trim() || 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300',
+        releaseDate: albumData.releaseDate,
+        trackCount: 0,
+        tracks: []
+      });
 
-    setAlbumData({
-      title: '',
-      cover: '',
-      numberOfSongs: 1,
-      releaseDate: new Date().toISOString().split('T')[0]
-    });
+      if (newAlbum) {
+        setCurrentAlbumId(newAlbum.id);
+        setTrackIndex(0);
+        setIsCreatingAlbum(false);
+        await loadAlbums();
+        
+        toast({
+          title: "Album Created",
+          description: `Album "${albumData.title}" created successfully. Now add songs to it.`,
+        });
+
+        setAlbumData({
+          title: '',
+          cover: '',
+          numberOfSongs: 1,
+          releaseDate: new Date().toISOString().split('T')[0]
+        });
+      } else {
+        throw new Error('Failed to create album - server returned null');
+      }
+    } catch (error) {
+      console.error('Error creating album:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create album. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAddTrack = async () => {
@@ -85,41 +129,57 @@ const Admin = () => {
       return;
     }
 
-    const currentAlbum = musicService.getAlbums().find(a => a.id === currentAlbumId);
-    
-    const track = await musicService.addTrackToAlbum(currentAlbumId, {
-      title: trackData.title,
-      artist: trackData.artist,
-      album: currentAlbum?.title || '',
-      cover: currentAlbum?.cover || '',
-      audioUrl: trackData.audioUrl,
-      genre: 'Album Track'
-    });
-
-    if (track) {
-      setTrackIndex(prev => prev + 1);
-      setTrackData({
-        title: '',
-        artist: '',
-        audioUrl: ''
-      });
-
-      toast({
-        title: "Track Added",
-        description: `Track "${track.title}" added to album successfully.`,
-      });
-
-      loadAlbums();
-
-      const updatedAlbum = musicService.getAlbums().find(a => a.id === currentAlbumId);
-      if (updatedAlbum && trackIndex + 1 >= albumData.numberOfSongs) {
-        toast({
-          title: "Album Complete",
-          description: `Album "${updatedAlbum.title}" is complete with ${updatedAlbum.trackCount} tracks.`,
-        });
-        setCurrentAlbumId(null);
-        setTrackIndex(0);
+    setIsLoading(true);
+    try {
+      const currentAlbum = albums.find(a => a.id === currentAlbumId);
+      if (!currentAlbum) {
+        throw new Error('Album not found');
       }
+      
+      const track = await musicService.addTrackToAlbum(currentAlbumId, {
+        title: trackData.title,
+        artist: trackData.artist,
+        album: currentAlbum.title,
+        cover: currentAlbum.cover,
+        audioUrl: trackData.audioUrl,
+        genre: 'Album Track'
+      });
+
+      if (track) {
+        setTrackIndex(prev => prev + 1);
+        setTrackData({
+          title: '',
+          artist: '',
+          audioUrl: ''
+        });
+
+        toast({
+          title: "Track Added",
+          description: `Track "${track.title}" added to album successfully.`,
+        });
+
+        await loadAlbums();
+
+        if (trackIndex + 1 >= albumData.numberOfSongs) {
+          toast({
+            title: "Album Complete",
+            description: `Album "${currentAlbum.title}" is complete with ${trackIndex + 1} tracks.`,
+          });
+          setCurrentAlbumId(null);
+          setTrackIndex(0);
+        }
+      } else {
+        throw new Error('Failed to add track');
+      }
+    } catch (error) {
+      console.error('Error adding track:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add track. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -133,24 +193,42 @@ const Admin = () => {
     setEditAlbumData({ title: album.title, cover: album.cover });
   };
 
-  const handleSaveAlbum = () => {
-    if (!editingAlbum || !editAlbumData.title || !editAlbumData.cover) {
+  const handleSaveAlbum = async () => {
+    if (!editingAlbum || !editAlbumData.title) {
       toast({
         title: "Error",
-        description: "Please fill in both album title and cover URL.",
+        description: "Please fill in at least the album title.",
         variant: "destructive",
       });
       return;
     }
     
-    musicService.updateAlbum(editingAlbum, editAlbumData);
-    loadAlbums();
-    setEditingAlbum(null);
-    
-    toast({
-      title: "Album Updated",
-      description: "Album details updated successfully.",
-    });
+    setIsLoading(true);
+    try {
+      const success = await musicService.updateAlbum(editingAlbum, editAlbumData);
+      
+      if (success) {
+        await loadAlbums(); // Reload all albums to get the updated data
+        setEditingAlbum(null);
+        setEditAlbumData({ title: '', cover: '' });
+        
+        toast({
+          title: "Album Updated",
+          description: "Album details updated successfully.",
+        });
+      } else {
+        throw new Error('Failed to update album');
+      }
+    } catch (error) {
+      console.error('Error updating album:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update album. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEditTrack = (track: any) => {
@@ -162,24 +240,42 @@ const Admin = () => {
     });
   };
 
-  const handleSaveTrack = () => {
-    if (!editingTrack || !editTrackData.title || !editTrackData.artist || !editTrackData.audioUrl) {
+  const handleSaveTrack = async () => {
+    if (!editingTrack || !editTrackData.title || !editTrackData.artist) {
       toast({
         title: "Error",
-        description: "Please fill in all track details.",
+        description: "Please fill in at least the track title and artist.",
         variant: "destructive",
       });
       return;
     }
     
-    musicService.updateTrack(editingTrack, editTrackData);
-    loadAlbums();
-    setEditingTrack(null);
-    
-    toast({
-      title: "Track Updated",
-      description: "Track details updated successfully.",
-    });
+    setIsLoading(true);
+    try {
+      const success = await musicService.updateTrack(editingTrack, editTrackData);
+      
+      if (success) {
+        await loadAlbums(); // Reload all albums to get the updated data
+        setEditingTrack(null);
+        setEditTrackData({ title: '', artist: '', audioUrl: '' });
+        
+        toast({
+          title: "Track Updated",
+          description: "Track details updated successfully.",
+        });
+      } else {
+        throw new Error('Failed to update track');
+      }
+    } catch (error) {
+      console.error('Error updating track:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update track. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -319,155 +415,161 @@ const Admin = () => {
             <CardDescription>Manage your created albums and tracks.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              {albums.length > 0 ? (
-                albums.map((album) => (
-                  <div key={album.id} className="border rounded-lg p-4 bg-music-cardBg">
-                    <div className="flex items-start gap-4">
-                      <img 
-                        src={album.cover} 
-                        alt={album.title}
-                        className="w-20 h-20 object-cover rounded-md"
-                      />
-                      
-                      <div className="flex-1">
-                        {editingAlbum === album.id ? (
-                          <div className="space-y-3">
-                            <div className="flex gap-4">
-                              <div className="w-20 h-20 rounded-md overflow-hidden">
-                                <img 
-                                  src={editAlbumData.cover || album.cover} 
-                                  alt="Album preview"
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const img = e.target as HTMLImageElement;
-                                    img.src = 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300';
-                                  }}
-                                />
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-music-primary" />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {albums.length > 0 ? (
+                  albums.map((album) => (
+                    <div key={album.id} className="border rounded-lg p-4 bg-music-cardBg">
+                      <div className="flex items-start gap-4">
+                        <img 
+                          src={album.cover} 
+                          alt={album.title}
+                          className="w-20 h-20 object-cover rounded-md"
+                        />
+                        
+                        <div className="flex-1">
+                          {editingAlbum === album.id ? (
+                            <div className="space-y-3">
+                              <div className="flex gap-4">
+                                <div className="w-20 h-20 rounded-md overflow-hidden">
+                                  <img 
+                                    src={editAlbumData.cover || album.cover} 
+                                    alt="Album preview"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const img = e.target as HTMLImageElement;
+                                      img.src = 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300';
+                                    }}
+                                  />
+                                </div>
+                                <div className="flex-1 space-y-3">
+                                  <Input
+                                    value={editAlbumData.title}
+                                    onChange={(e) => setEditAlbumData(prev => ({ ...prev, title: e.target.value }))}
+                                    placeholder="Album title"
+                                  />
+                                  <Input
+                                    value={editAlbumData.cover}
+                                    onChange={(e) => setEditAlbumData(prev => ({ ...prev, cover: e.target.value }))}
+                                    placeholder="Cover URL"
+                                  />
+                                </div>
                               </div>
-                              <div className="flex-1 space-y-3">
-                                <Input
-                                  value={editAlbumData.title}
-                                  onChange={(e) => setEditAlbumData(prev => ({ ...prev, title: e.target.value }))}
-                                  placeholder="Album title"
-                                />
-                                <Input
-                                  value={editAlbumData.cover}
-                                  onChange={(e) => setEditAlbumData(prev => ({ ...prev, cover: e.target.value }))}
-                                  placeholder="Cover URL"
-                                />
+                              <div className="flex gap-2">
+                                <Button size="sm" onClick={handleSaveAlbum} className="bg-music-primary text-black hover:bg-music-highlight">
+                                  <Save className="h-4 w-4 mr-1" />
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setEditingAlbum(null)}>
+                                  <X className="h-4 w-4 mr-1" />
+                                  Cancel
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex gap-2">
-                              <Button size="sm" onClick={handleSaveAlbum} className="bg-music-primary text-black hover:bg-music-highlight">
-                                <Save className="h-4 w-4 mr-1" />
-                                Save
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => setEditingAlbum(null)}>
-                                <X className="h-4 w-4 mr-1" />
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <h3 className="font-medium text-white text-lg">{album.title}</h3>
+                          ) : (
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-medium text-white text-lg">{album.title}</h3>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleEditAlbum(album)}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <p className="text-sm text-gray-400 mb-1">{album.trackCount} tracks</p>
+                              <p className="text-xs text-gray-500 truncate mb-3" title={album.cover}>
+                                Cover: {album.cover}
+                              </p>
                               <Button
                                 size="sm"
-                                variant="outline"
-                                onClick={() => handleEditAlbum(album)}
+                                onClick={() => handleAddExtraTrack(album.id)}
+                                className="bg-music-primary text-black hover:bg-music-highlight"
                               >
-                                <Edit2 className="h-4 w-4" />
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add Track
                               </Button>
                             </div>
-                            <p className="text-sm text-gray-400 mb-1">{album.trackCount} tracks</p>
-                            <p className="text-xs text-gray-500 truncate mb-3" title={album.cover}>
-                              Cover: {album.cover}
-                            </p>
-                            <Button
-                              size="sm"
-                              onClick={() => handleAddExtraTrack(album.id)}
-                              className="bg-music-primary text-black hover:bg-music-highlight"
-                            >
-                              <Plus className="h-4 w-4 mr-1" />
-                              Add Track
-                            </Button>
-                          </div>
-                        )}
-                        
-                        {/* Tracks List */}
-                        {album.tracks.length > 0 && (
-                          <div className="mt-4 space-y-2">
-                            <h4 className="text-sm font-medium text-gray-300">Tracks:</h4>
-                            {album.tracks.map((track) => (
-                              <div key={track.id} className="flex items-center justify-between bg-music-hover p-2 rounded">
-                                {editingTrack === track.id ? (
-                                  <div className="flex-1 space-y-2">
-                                    <div className="grid grid-cols-2 gap-2">
+                          )}
+                          
+                          {/* Tracks List */}
+                          {album.tracks.length > 0 && (
+                            <div className="mt-4 space-y-2">
+                              <h4 className="text-sm font-medium text-gray-300">Tracks:</h4>
+                              {album.tracks.map((track) => (
+                                <div key={track.id} className="flex items-center justify-between bg-music-hover p-2 rounded">
+                                  {editingTrack === track.id ? (
+                                    <div className="flex-1 space-y-2">
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <Input
+                                          value={editTrackData.title}
+                                          onChange={(e) => setEditTrackData(prev => ({ ...prev, title: e.target.value }))}
+                                          placeholder="Title"
+                                          className="text-sm"
+                                        />
+                                        <Input
+                                          value={editTrackData.artist}
+                                          onChange={(e) => setEditTrackData(prev => ({ ...prev, artist: e.target.value }))}
+                                          placeholder="Artist"
+                                          className="text-sm"
+                                        />
+                                      </div>
                                       <Input
-                                        value={editTrackData.title}
-                                        onChange={(e) => setEditTrackData(prev => ({ ...prev, title: e.target.value }))}
-                                        placeholder="Title"
+                                        value={editTrackData.audioUrl}
+                                        onChange={(e) => setEditTrackData(prev => ({ ...prev, audioUrl: e.target.value }))}
+                                        placeholder="Song URL"
                                         className="text-sm"
                                       />
-                                      <Input
-                                        value={editTrackData.artist}
-                                        onChange={(e) => setEditTrackData(prev => ({ ...prev, artist: e.target.value }))}
-                                        placeholder="Artist"
-                                        className="text-sm"
-                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <Button size="sm" onClick={handleSaveTrack} className="bg-music-primary text-black hover:bg-music-highlight">
+                                          <Save className="h-3 w-3 mr-1" />
+                                          Save
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => setEditingTrack(null)}>
+                                          <X className="h-3 w-3 mr-1" />
+                                          Cancel
+                                        </Button>
+                                      </div>
                                     </div>
-                                    <Input
-                                      value={editTrackData.audioUrl}
-                                      onChange={(e) => setEditTrackData(prev => ({ ...prev, audioUrl: e.target.value }))}
-                                      placeholder="Song URL"
-                                      className="text-sm"
-                                    />
-                                    <div className="flex gap-2 justify-end">
-                                      <Button size="sm" onClick={handleSaveTrack} className="bg-music-primary text-black hover:bg-music-highlight">
-                                        <Save className="h-3 w-3 mr-1" />
-                                        Save
+                                  ) : (
+                                    <>
+                                      <div className="flex-1">
+                                        <p className="text-sm text-white">{track.title}</p>
+                                        <p className="text-xs text-gray-400">{track.artist}</p>
+                                        <p className="text-xs text-gray-500 truncate mt-1" title={track.audioUrl}>
+                                          URL: {track.audioUrl}
+                                        </p>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleEditTrack(track)}
+                                        className="self-start"
+                                      >
+                                        <Edit2 className="h-3 w-3" />
                                       </Button>
-                                      <Button size="sm" variant="outline" onClick={() => setEditingTrack(null)}>
-                                        <X className="h-3 w-3 mr-1" />
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="flex-1">
-                                      <p className="text-sm text-white">{track.title}</p>
-                                      <p className="text-xs text-gray-400">{track.artist}</p>
-                                      <p className="text-xs text-gray-500 truncate mt-1" title={track.audioUrl}>
-                                        URL: {track.audioUrl}
-                                      </p>
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleEditTrack(track)}
-                                      className="self-start"
-                                    >
-                                      <Edit2 className="h-3 w-3" />
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-400">No albums created yet. Create your first album!</p>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-400">No albums created yet. Create your first album!</p>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

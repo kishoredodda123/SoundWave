@@ -3,9 +3,27 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 const SUPABASE_URL = "https://xfedtaajlodjzwphkenq.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmZWR0YWFqbG9kanp3cGhrZW5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5MjcxMzMsImV4cCI6MjA2MzUwMzEzM30.6gcWpuhigUO2m5nxT_yDHczNDgM2YORWd_8QnywFFkE";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmZWR0YWFqbG9kanp3cGhrZW5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5MjcxMzMsImV4cCI6MjA2MzUwMzEzM30.6gcWpuhigUO2m5nxT_yDHczNDgM2YORWd_8QnywFFkE";
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// IMPORTANT: Replace this with your actual service_role key from Supabase dashboard
+const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmZWR0YWFqbG9kanp3cGhrZW5xIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzkyNzEzMywiZXhwIjoyMDYzNTAzMTMzfQ.oCgU04dSnJFL07UGl8OmKBLgB3ujeu2fE9tQpMfR1BA";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !SUPABASE_ANON_KEY) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+// Create an admin client that bypasses RLS
+export const supabaseAdmin = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+
+// Create a regular client for non-admin operations
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true
+  }
+});
