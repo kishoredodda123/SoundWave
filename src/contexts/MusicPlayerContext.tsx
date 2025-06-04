@@ -1,5 +1,6 @@
 import React, { createContext, useContext, ReactNode, useRef, useEffect } from 'react';
 import { useMusicPlayer } from '@/hooks/useMusicPlayer';
+import { useRecentlyPlayed } from '@/hooks/useRecentlyPlayed';
 import { Track } from '@/services/musicService';
 
 interface MusicPlayerContextType {
@@ -18,16 +19,25 @@ interface MusicPlayerContextType {
   handleSeek: (value: number) => void;
   skipForward: () => void;
   skipBackward: () => void;
+  recentlyPlayed: Track[];
 }
 
 const MusicPlayerContext = createContext<MusicPlayerContextType | undefined>(undefined);
 
 export const MusicPlayerProvider = ({ children }: { children: ReactNode }) => {
   const musicPlayer = useMusicPlayer();
+  const { recentlyPlayed, addToRecentlyPlayed } = useRecentlyPlayed();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [volume, setVolume] = React.useState(70);
   const [currentTime, setCurrentTime] = React.useState(0);
   const [duration, setDuration] = React.useState(0);
+
+  // Track when a song starts playing to add it to recently played
+  useEffect(() => {
+    if (musicPlayer.currentTrack && musicPlayer.isPlaying) {
+      addToRecentlyPlayed(musicPlayer.currentTrack);
+    }
+  }, [musicPlayer.currentTrack?.id, musicPlayer.isPlaying]);
 
   // Handle audio events
   useEffect(() => {
@@ -140,7 +150,8 @@ export const MusicPlayerProvider = ({ children }: { children: ReactNode }) => {
     setVolume,
     handleSeek,
     skipForward,
-    skipBackward
+    skipBackward,
+    recentlyPlayed
   };
   
   return (

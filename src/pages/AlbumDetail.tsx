@@ -108,7 +108,7 @@ const AlbumDetail = () => {
           </button>
         </div>
 
-        <div className="px-4 md:px-6 pb-6">
+        <div className="px-4 md:px-6">
           <div className="flex flex-col md:flex-row gap-6 mb-8">
             <img 
               src={album.cover} 
@@ -131,15 +131,17 @@ const AlbumDetail = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
-            {album.tracks.map((track, index) => (
-              <TrackCard
-                key={track.id}
-                track={track}
-                index={index + 1}
-                onClick={() => playTrack(track, album.tracks)}
-              />
-            ))}
+          <div className="mb-[160px] sm:mb-[140px] md:mb-32">
+            <div className="space-y-2">
+              {album.tracks.map((track, index) => (
+                <TrackCard
+                  key={track.id}
+                  track={track}
+                  index={index + 1}
+                  onClick={() => playTrack(track, album.tracks)}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
