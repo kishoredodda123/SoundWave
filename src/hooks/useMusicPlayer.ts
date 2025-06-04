@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Track } from '@/services/musicService';
 
 export const useMusicPlayer = () => {
@@ -8,41 +8,6 @@ export const useMusicPlayer = () => {
   const [playlist, setPlaylist] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const lastTrackRef = useRef<string | null>(null);
-  const stateInitialized = useRef(false);
-
-  // Persist state to localStorage
-  useEffect(() => {
-    if (!stateInitialized.current) {
-      // Load from localStorage on initialization
-      const savedState = localStorage.getItem('musicPlayerState');
-      if (savedState) {
-        try {
-          const { currentTrack: savedTrack, playlist: savedPlaylist, currentIndex: savedIndex } = JSON.parse(savedState);
-          if (savedTrack) {
-            setCurrentTrack(savedTrack);
-            setPlaylist(savedPlaylist || []);
-            setCurrentIndex(savedIndex || 0);
-            lastTrackRef.current = savedTrack.id;
-          }
-        } catch (error) {
-          console.error('Error loading music player state:', error);
-        }
-      }
-      stateInitialized.current = true;
-    }
-  }, []);
-
-  // Save state to localStorage whenever it changes
-  useEffect(() => {
-    if (stateInitialized.current && currentTrack) {
-      const stateToSave = {
-        currentTrack,
-        playlist,
-        currentIndex
-      };
-      localStorage.setItem('musicPlayerState', JSON.stringify(stateToSave));
-    }
-  }, [currentTrack, playlist, currentIndex]);
 
   const playTrack = useCallback((track: Track, trackList?: Track[]) => {
     console.log('🎵 Playing track:', track.title);
