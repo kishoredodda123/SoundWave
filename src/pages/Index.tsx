@@ -6,20 +6,25 @@ import TrackCarousel from '@/components/ui/track-carousel';
 import { useState, useEffect } from 'react';
 import { musicService, Track, Album } from '@/services/musicService';
 import AlbumCard from '@/components/music/AlbumCard';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Index = () => {
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setRecentlyPlayed(musicService.getRecentlyPlayed());
     setAlbums(musicService.getAlbums().slice(0, 6)); // Show up to 6 albums
   }, []);
 
+  const handleAlbumClick = (albumId: string) => {
+    navigate(`/albums/${albumId}`);
+  };
+
   return (
     <MainLayout>
-      <div className="px-4 md:px-6 py-4 md:py-8 w-full h-full">
+      <div className="px-0 md:px-2 py-4 md:py-6 w-full h-full">
         {/* Hero Section */}
         <div className="bg-gradient-to-b from-music-primary/20 to-transparent p-4 md:p-8 rounded-xl mb-6 md:mb-8">
           <h1 className="text-2xl md:text-4xl font-bold mb-2">Welcome to SoundWave</h1>
@@ -41,7 +46,7 @@ const Index = () => {
                 <AlbumCard 
                   key={album.id} 
                   album={album}
-                  onClick={() => window.location.href = `/albums/${album.id}`}
+                  onClick={() => handleAlbumClick(album.id)}
                 />
               ))}
             </div>
