@@ -56,37 +56,42 @@ const MusicPlayer = ({
   const effectiveDuration = duration > 0 ? duration : (currentTrack?.duration || 0);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 max-h-[200px] overflow-hidden">
-      <div className="flex flex-col h-full">
+    <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg/95 backdrop-blur-lg border-t border-gray-800 px-3 sm:px-4 py-2 sm:py-3">
+      <div className="flex flex-col h-full max-w-7xl mx-auto">
         {/* Mobile Layout (xs to sm screens) */}
-        <div className="block md:hidden h-full">
-          {/* Track Info - Mobile */}
-          <div className="flex items-center mb-2 max-w-full">
-            <img 
-              src={displayTrack.cover}
-              alt={`${displayTrack.title} album art`}
-              className="h-8 w-8 sm:h-10 sm:w-10 object-cover rounded mr-2 sm:mr-3 flex-shrink-0"
-            />
-            <div className="flex-1 min-w-0 mr-2">
-              <h4 className="text-xs sm:text-sm font-medium text-white truncate">{displayTrack.title}</h4>
-              <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
+        <div className="block md:hidden">
+          {/* Track Info Row - Mobile */}
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex items-center flex-1 min-w-0">
+              <img 
+                src={displayTrack.cover}
+                alt={`${displayTrack.title} album art`}
+                className="h-12 w-12 object-cover rounded-lg shadow-lg mr-3"
+              />
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-semibold text-white truncate">{displayTrack.title}</h4>
+                <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
+              </div>
             </div>
             
-            {/* Mobile Play Button */}
+            {/* Play/Pause Button - Mobile */}
             <button 
-              className={`bg-red-600 rounded-full p-1.5 sm:p-2 text-white hover:scale-105 transition disabled:opacity-50 flex-shrink-0 ${
+              className={`bg-music-primary rounded-full p-3 text-black hover:bg-music-highlight transition-all active:scale-95 disabled:opacity-50 ${
                 isPlaying ? 'animate-pulse' : ''
               }`}
               onClick={onPlayPause}
               disabled={!currentTrack?.audioUrl}
             >
-              {isPlaying ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
+              {isPlaying ? 
+                <Pause className="h-5 w-5" /> : 
+                <Play className="h-5 w-5 ml-0.5" />
+              }
             </button>
           </div>
           
-          {/* Progress Bar - Mobile */}
-          <div className="flex items-center space-x-2 text-xs text-gray-400 mb-2">
-            <span className="text-[10px] sm:text-xs w-8 text-right">{formatTime(currentTime)}</span>
+          {/* Progress Bar Row - Mobile */}
+          <div className="flex items-center space-x-2 mb-2">
+            <span className="text-xs w-10 text-right text-gray-400">{formatTime(currentTime)}</span>
             <div className="flex-1">
               <Slider 
                 value={[currentTime]} 
@@ -97,51 +102,53 @@ const MusicPlayer = ({
                 disabled={effectiveDuration === 0}
               />
             </div>
-            <span className="text-[10px] sm:text-xs w-8">{formatTime(effectiveDuration)}</span>
+            <span className="text-xs w-10 text-gray-400">{formatTime(effectiveDuration)}</span>
           </div>
           
-          {/* Controls - Mobile */}
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-1 sm:space-x-2">
+          {/* Controls Row - Mobile */}
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center space-x-6">
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-2"
                 onClick={onPrevious}
                 disabled={!onPrevious}
               >
-                <SkipBack className="h-3 w-3 sm:h-4 sm:w-4" />
+                <SkipBack className="h-5 w-5" />
               </button>
               
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-2"
                 onClick={skipBackward}
                 disabled={!currentTrack?.audioUrl}
                 title="Skip back 10 seconds"
               >
-                <RotateCcw className="h-3 w-3" />
+                <RotateCcw className="h-5 w-5" />
               </button>
-              
+            </div>
+
+            <div className="flex items-center space-x-6">
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-2"
                 onClick={skipForward}
                 disabled={!currentTrack?.audioUrl}
                 title="Skip forward 10 seconds"
               >
-                <RotateCw className="h-3 w-3" />
+                <RotateCw className="h-5 w-5" />
               </button>
               
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-2"
                 onClick={onNext}
                 disabled={!onNext}
               >
-                <SkipForward className="h-3 w-3 sm:h-4 sm:w-4" />
+                <SkipForward className="h-5 w-5" />
               </button>
             </div>
-            
+
             {/* Volume Control - Mobile */}
-            <div className="flex items-center">
-              <VolumeIcon className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 mr-1" />
-              <div className="w-12 sm:w-16">
+            <div className="flex items-center space-x-2">
+              <VolumeIcon className="h-5 w-5 text-gray-400" />
+              <div className="w-20">
                 <Slider 
                   value={[volume]} 
                   max={100}
