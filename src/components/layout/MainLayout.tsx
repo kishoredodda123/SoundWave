@@ -12,7 +12,7 @@ const MainLayout = ({
   return <div className="flex flex-col h-full w-full overflow-hidden bg-gradient-to-br from-music-secondary via-music-darkBg to-music-secondary">
       <div className="flex flex-1 overflow-hidden w-full">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto pb-24 md:pb-32 pt-4 md:pt-6 px-4 w-full md:px-0 py-0">
+        <main className="flex-1 overflow-y-auto pb-24 md:pb-32 pt-4 md:pt-6 px-4 w-full md:px-0 py-[2px]">
           <div className="max-w-7xl mx-auto w-full h-full">
             {children}
           </div>
