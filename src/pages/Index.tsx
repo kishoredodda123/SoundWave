@@ -19,7 +19,7 @@ const Index = () => {
 
   return (
     <MainLayout>
-      <div className="px-4 md:px-6 py-4 md:py-8">
+      <div className="px-4 md:px-6 py-4 md:py-8 w-full h-full">
         {/* Hero Section */}
         <div className="bg-gradient-to-b from-music-primary/20 to-transparent p-4 md:p-8 rounded-xl mb-6 md:mb-8">
           <h1 className="text-2xl md:text-4xl font-bold mb-2">Welcome to SoundWave</h1>

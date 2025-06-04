@@ -21,7 +21,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <MusicPlayerProvider>
         <Router>
-          <div className="min-h-screen bg-music-darkBg text-white">
+          <div className="min-h-screen w-full bg-music-darkBg text-white">
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/search" element={<Search />} />
