@@ -21,7 +21,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <MusicPlayerProvider>
         <Router>
-          <div className="min-h-screen w-full bg-music-darkBg text-white">
+          <div className="min-h-screen h-screen w-full bg-music-darkBg text-white overflow-hidden">
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/search" element={<Search />} />
@@ -33,8 +33,8 @@ function App() {
               <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <Toaster />
           </div>
-          <Toaster />
         </Router>
       </MusicPlayerProvider>
     </QueryClientProvider>
