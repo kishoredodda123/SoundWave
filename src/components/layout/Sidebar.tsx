@@ -27,7 +27,7 @@ const Sidebar = () => {
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         border-r border-gray-800 md:border-r-0
       `}>
-        <div className="p-6 h-full px-0 py-0 mx-[20px]">
+        <div className="p-6 h-full px-0 py-0 mx-[20px] my-[20px]">
           <div className="flex items-center mb-8">
             <Music className="h-8 w-8 text-music-primary mr-2" />
             <h1 className="text-2xl font-bold text-white">SoundWave</h1>
