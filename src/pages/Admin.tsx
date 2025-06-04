@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -135,7 +134,14 @@ const Admin = () => {
   };
 
   const handleSaveAlbum = () => {
-    if (!editingAlbum || !editAlbumData.title) return;
+    if (!editingAlbum || !editAlbumData.title || !editAlbumData.cover) {
+      toast({
+        title: "Error",
+        description: "Please fill in both album title and cover URL.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     musicService.updateAlbum(editingAlbum, editAlbumData);
     loadAlbums();
@@ -157,7 +163,14 @@ const Admin = () => {
   };
 
   const handleSaveTrack = () => {
-    if (!editingTrack || !editTrackData.title || !editTrackData.artist) return;
+    if (!editingTrack || !editTrackData.title || !editTrackData.artist || !editTrackData.audioUrl) {
+      toast({
+        title: "Error",
+        description: "Please fill in all track details.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     musicService.updateTrack(editingTrack, editTrackData);
     loadAlbums();
@@ -320,18 +333,33 @@ const Admin = () => {
                       <div className="flex-1">
                         {editingAlbum === album.id ? (
                           <div className="space-y-3">
-                            <Input
-                              value={editAlbumData.title}
-                              onChange={(e) => setEditAlbumData(prev => ({ ...prev, title: e.target.value }))}
-                              placeholder="Album title"
-                            />
-                            <Input
-                              value={editAlbumData.cover}
-                              onChange={(e) => setEditAlbumData(prev => ({ ...prev, cover: e.target.value }))}
-                              placeholder="Cover URL"
-                            />
+                            <div className="flex gap-4">
+                              <div className="w-20 h-20 rounded-md overflow-hidden">
+                                <img 
+                                  src={editAlbumData.cover || album.cover} 
+                                  alt="Album preview"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const img = e.target as HTMLImageElement;
+                                    img.src = 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=300&h=300';
+                                  }}
+                                />
+                              </div>
+                              <div className="flex-1 space-y-3">
+                                <Input
+                                  value={editAlbumData.title}
+                                  onChange={(e) => setEditAlbumData(prev => ({ ...prev, title: e.target.value }))}
+                                  placeholder="Album title"
+                                />
+                                <Input
+                                  value={editAlbumData.cover}
+                                  onChange={(e) => setEditAlbumData(prev => ({ ...prev, cover: e.target.value }))}
+                                  placeholder="Cover URL"
+                                />
+                              </div>
+                            </div>
                             <div className="flex gap-2">
-                              <Button size="sm" onClick={handleSaveAlbum}>
+                              <Button size="sm" onClick={handleSaveAlbum} className="bg-music-primary text-black hover:bg-music-highlight">
                                 <Save className="h-4 w-4 mr-1" />
                                 Save
                               </Button>
@@ -353,7 +381,10 @@ const Admin = () => {
                                 <Edit2 className="h-4 w-4" />
                               </Button>
                             </div>
-                            <p className="text-sm text-gray-400 mb-3">{album.trackCount} tracks</p>
+                            <p className="text-sm text-gray-400 mb-1">{album.trackCount} tracks</p>
+                            <p className="text-xs text-gray-500 truncate mb-3" title={album.cover}>
+                              Cover: {album.cover}
+                            </p>
                             <Button
                               size="sm"
                               onClick={() => handleAddExtraTrack(album.id)}
@@ -372,25 +403,35 @@ const Admin = () => {
                             {album.tracks.map((track) => (
                               <div key={track.id} className="flex items-center justify-between bg-music-hover p-2 rounded">
                                 {editingTrack === track.id ? (
-                                  <div className="flex-1 grid grid-cols-3 gap-2">
+                                  <div className="flex-1 space-y-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <Input
+                                        value={editTrackData.title}
+                                        onChange={(e) => setEditTrackData(prev => ({ ...prev, title: e.target.value }))}
+                                        placeholder="Title"
+                                        className="text-sm"
+                                      />
+                                      <Input
+                                        value={editTrackData.artist}
+                                        onChange={(e) => setEditTrackData(prev => ({ ...prev, artist: e.target.value }))}
+                                        placeholder="Artist"
+                                        className="text-sm"
+                                      />
+                                    </div>
                                     <Input
-                                      value={editTrackData.title}
-                                      onChange={(e) => setEditTrackData(prev => ({ ...prev, title: e.target.value }))}
-                                      placeholder="Title"
+                                      value={editTrackData.audioUrl}
+                                      onChange={(e) => setEditTrackData(prev => ({ ...prev, audioUrl: e.target.value }))}
+                                      placeholder="Song URL"
                                       className="text-sm"
                                     />
-                                    <Input
-                                      value={editTrackData.artist}
-                                      onChange={(e) => setEditTrackData(prev => ({ ...prev, artist: e.target.value }))}
-                                      placeholder="Artist"
-                                      className="text-sm"
-                                    />
-                                    <div className="flex gap-1">
-                                      <Button size="sm" onClick={handleSaveTrack}>
-                                        <Save className="h-3 w-3" />
+                                    <div className="flex gap-2 justify-end">
+                                      <Button size="sm" onClick={handleSaveTrack} className="bg-music-primary text-black hover:bg-music-highlight">
+                                        <Save className="h-3 w-3 mr-1" />
+                                        Save
                                       </Button>
                                       <Button size="sm" variant="outline" onClick={() => setEditingTrack(null)}>
-                                        <X className="h-3 w-3" />
+                                        <X className="h-3 w-3 mr-1" />
+                                        Cancel
                                       </Button>
                                     </div>
                                   </div>
@@ -399,11 +440,15 @@ const Admin = () => {
                                     <div className="flex-1">
                                       <p className="text-sm text-white">{track.title}</p>
                                       <p className="text-xs text-gray-400">{track.artist}</p>
+                                      <p className="text-xs text-gray-500 truncate mt-1" title={track.audioUrl}>
+                                        URL: {track.audioUrl}
+                                      </p>
                                     </div>
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       onClick={() => handleEditTrack(track)}
+                                      className="self-start"
                                     >
                                       <Edit2 className="h-3 w-3" />
                                     </Button>

@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, RotateCcw, RotateCw } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Track } from '@/services/musicService';
 import { toast } from "@/hooks/use-toast";
+import { useMusicPlayerContext } from '@/contexts/MusicPlayerContext';
 
 interface MusicPlayerProps {
   currentTrack?: Track;
@@ -19,19 +20,23 @@ const MusicPlayer = ({
   onNext, 
   onPrevious 
 }: MusicPlayerProps) => {
-  const [volume, setVolume] = useState(70);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [audioLoading, setAudioLoading] = useState(false);
-  const [audioError, setAudioError] = useState(false);
-  const [currentAudioUrl, setCurrentAudioUrl] = useState('');
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const {
+    volume,
+    setVolume,
+    currentTime,
+    duration,
+    handleSeek,
+    skipForward,
+    skipBackward
+  } = useMusicPlayerContext();
 
-  // Fallback audio URLs for absolute last resort
-  const fallbackAudioUrls = [
-    'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
-    'https://www.soundjay.com/misc/sounds/fail-buzzer-02.wav'
-  ];
+  // Format time in MM:SS
+  const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
 
   // Default track for demo when no track is selected
   const displayTrack = currentTrack || {
@@ -44,437 +49,99 @@ const MusicPlayer = ({
     duration: 0
   };
 
-  // Format time in MM:SS
-  const formatTime = (seconds: number) => {
-    if (!seconds || isNaN(seconds)) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-
-  // Add 10-second skip functions
-  const skipForward = () => {
-    const audio = audioRef.current;
-    if (audio && !audioError && duration > 0) {
-      const newTime = Math.min(currentTime + 10, duration);
-      audio.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
-  };
-
-  const skipBackward = () => {
-    const audio = audioRef.current;
-    if (audio && !audioError) {
-      const newTime = Math.max(currentTime - 10, 0);
-      audio.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
-  };
-
-  // Try to load audio with the given URL
-  const tryLoadAudio = (url: string): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const audio = audioRef.current;
-      if (!audio) {
-        resolve(false);
-        return;
-      }
-
-      console.log(`🎵 Trying to load audio from: ${url}`);
-      
-      const timeout = setTimeout(() => {
-        console.log(`⏰ Audio loading timeout for: ${url}`);
-        cleanup();
-        resolve(false);
-      }, 10000); // 10 second timeout
-
-      const cleanup = () => {
-        clearTimeout(timeout);
-        audio.removeEventListener('canplay', onCanPlay);
-        audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-        audio.removeEventListener('error', onError);
-        audio.removeEventListener('abort', onError);
-      };
-
-      const onCanPlay = () => {
-        console.log(`✅ Audio loaded successfully from: ${url}`);
-        cleanup();
-        resolve(true);
-      };
-
-      const onLoadedMetadata = () => {
-        console.log(`📋 Audio metadata loaded from: ${url}`);
-        if (audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-          cleanup();
-          resolve(true);
-        }
-      };
-
-      const onError = (e: Event) => {
-        console.log(`❌ Audio failed to load from: ${url}`, (e.target as HTMLAudioElement)?.error);
-        cleanup();
-        resolve(false);
-      };
-
-      // Set up event listeners
-      audio.addEventListener('canplay', onCanPlay);
-      audio.addEventListener('loadedmetadata', onLoadedMetadata);
-      audio.addEventListener('error', onError);
-      audio.addEventListener('abort', onError);
-
-      // Reset and load new URL
-      audio.pause();
-      audio.currentTime = 0;
-      audio.src = url;
-      audio.load();
-    });
-  };
-
-  // Try original URL first, then fallbacks if needed
-  const loadAudioWithFallbacks = async () => {
-    const audio = audioRef.current;
-    if (!audio || !currentTrack?.audioUrl) return false;
-
-    setAudioLoading(true);
-    setAudioError(false);
-
-    // First, try the original URL (your pCloud link)
-    console.log(`🎯 Attempting to load original URL: ${currentTrack.audioUrl}`);
-    const originalWorked = await tryLoadAudio(currentTrack.audioUrl);
-    
-    if (originalWorked) {
-      console.log(`🎉 Original audio URL works perfectly!`);
-      setCurrentAudioUrl(currentTrack.audioUrl);
-      setAudioLoading(false);
-      return true;
-    }
-
-    console.log(`⚠️ Original URL failed, trying fallbacks...`);
-    
-    // Only try fallbacks if original completely fails
-    for (const fallbackUrl of fallbackAudioUrls) {
-      console.log(`🔄 Trying fallback: ${fallbackUrl}`);
-      const fallbackWorked = await tryLoadAudio(fallbackUrl);
-      
-      if (fallbackWorked) {
-        console.log(`✅ Fallback audio working: ${fallbackUrl}`);
-        setCurrentAudioUrl(fallbackUrl);
-        setAudioLoading(false);
-        toast({
-          title: "Using Demo Audio",
-          description: "Original track unavailable, playing demo sound",
-        });
-        return true;
-      }
-    }
-
-    console.log(`❌ All audio sources failed`);
-    setAudioError(true);
-    setAudioLoading(false);
-    toast({
-      title: "Audio Unavailable",
-      description: "Unable to play this track",
-      variant: "destructive",
-    });
-    return false;
-  };
-
-  // Reset states when track changes
-  useEffect(() => {
-    if (currentTrack?.audioUrl) {
-      console.log('🎵 MusicPlayer: Track changed to:', currentTrack.title);
-      console.log('🔗 Original audio URL:', currentTrack.audioUrl);
-      
-      setCurrentTime(0);
-      setDuration(0);
-      setAudioError(false);
-      setCurrentAudioUrl('');
-      
-      // Load audio with fallbacks
-      loadAudioWithFallbacks();
-    }
-  }, [currentTrack?.id]);
-
-  // Handle audio events
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleTimeUpdate = () => {
-      if (!isNaN(audio.currentTime)) {
-        setCurrentTime(audio.currentTime);
-      }
-    };
-
-    const handleDurationChange = () => {
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-        setDuration(audio.duration);
-        setAudioLoading(false);
-      }
-    };
-
-    const handleCanPlay = () => {
-      console.log('✅ Audio can play');
-      setAudioLoading(false);
-      setAudioError(false);
-    };
-
-    const handleLoadedMetadata = () => {
-      console.log('📋 Audio metadata loaded');
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-        setDuration(audio.duration);
-      }
-      setAudioLoading(false);
-      setAudioError(false);
-    };
-
-    const handleEnded = () => {
-      console.log('🏁 Audio ended');
-      setCurrentTime(0);
-      if (onNext) onNext();
-    };
-
-    const handleLoadStart = () => {
-      console.log('🔄 Audio loading started');
-      setAudioLoading(true);
-      setAudioError(false);
-    };
-
-    const handleError = (e: Event) => {
-      const target = e.target as HTMLAudioElement;
-      console.error('❌ Audio playback error:', target.error);
-      setAudioError(true);
-      setAudioLoading(false);
-    };
-
-    const handlePlaying = () => {
-      console.log('▶️ Audio playing');
-      setAudioLoading(false);
-      setAudioError(false);
-    };
-
-    const handleWaiting = () => {
-      console.log('⏳ Audio buffering');
-      setAudioLoading(true);
-    };
-
-    const handleCanPlayThrough = () => {
-      console.log('🎯 Audio can play through');
-      setAudioLoading(false);
-      setAudioError(false);
-    };
-
-    // Add event listeners
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('durationchange', handleDurationChange);
-    audio.addEventListener('canplay', handleCanPlay);
-    audio.addEventListener('canplaythrough', handleCanPlayThrough);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('loadstart', handleLoadStart);
-    audio.addEventListener('error', handleError);
-    audio.addEventListener('playing', handlePlaying);
-    audio.addEventListener('waiting', handleWaiting);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('durationchange', handleDurationChange);
-      audio.removeEventListener('canplay', handleCanPlay);
-      audio.removeEventListener('canplaythrough', handleCanPlayThrough);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('loadstart', handleLoadStart);
-      audio.removeEventListener('error', handleError);
-      audio.removeEventListener('playing', handlePlaying);
-      audio.removeEventListener('waiting', handleWaiting);
-    };
-  }, [onNext]);
-
-  // Control play/pause
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !currentTrack?.audioUrl) return;
-
-    const handlePlayback = async () => {
-      try {
-        if (isPlaying && !audioError) {
-          console.log('🎯 MusicPlayer: Attempting to play');
-          
-          // Ensure audio is ready
-          if (audio.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
-            console.log('⏳ Waiting for audio data...');
-            setAudioLoading(true);
-            
-            // Wait for audio to be ready with timeout
-            await new Promise<void>((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                reject(new Error('Audio loading timeout'));
-              }, 5000);
-              
-              const checkReady = () => {
-                if (audio.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
-                  clearTimeout(timeout);
-                  resolve();
-                } else {
-                  setTimeout(checkReady, 100);
-                }
-              };
-              checkReady();
-            });
-          }
-          
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            await playPromise;
-            console.log('✅ MusicPlayer: Play successful');
-            setAudioLoading(false);
-          }
-        } else if (!isPlaying) {
-          console.log('⏸️ MusicPlayer: Pausing');
-          audio.pause();
-        }
-      } catch (error) {
-        console.error('❌ MusicPlayer: Playback error:', error);
-        setAudioError(true);
-        setAudioLoading(false);
-      }
-    };
-
-    handlePlayback();
-  }, [isPlaying, currentAudioUrl]);
-
-  // Update volume
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.volume = volume / 100;
-    }
-  }, [volume]);
-
-  // Handle seek
-  const handleSeek = (values: number[]) => {
-    const audio = audioRef.current;
-    if (audio && !isNaN(values[0]) && duration > 0 && !audioError) {
-      const newTime = Math.min(values[0], duration);
-      audio.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
-  };
-
   // Volume icon based on level
   const VolumeIcon = volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
 
   // Get effective duration
   const effectiveDuration = duration > 0 ? duration : (currentTrack?.duration || 0);
 
-  // Show loading or error status
-  const getTrackStatus = () => {
-    if (audioError) return 'Track unavailable';
-    if (audioLoading) return 'Loading...';
-    if (currentAudioUrl && currentAudioUrl !== currentTrack?.audioUrl) return 'Demo audio';
-    return null;
-  };
-
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-2 md:px-4 py-2 md:py-3">
-      {currentTrack?.audioUrl && (
-        <audio
-          ref={audioRef}
-          preload="metadata"
-          style={{ display: 'none' }}
-        />
-      )}
-      
-      <div className="flex flex-col">
-        {/* Mobile Layout */}
-        <div className="block md:hidden">
+    <div className="fixed bottom-0 left-0 right-0 bg-music-cardBg border-t border-gray-800 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 max-h-[200px] overflow-hidden">
+      <div className="flex flex-col h-full">
+        {/* Mobile Layout (xs to sm screens) */}
+        <div className="block md:hidden h-full">
           {/* Track Info - Mobile */}
-          <div className="flex items-center mb-2">
+          <div className="flex items-center mb-2 max-w-full">
             <img 
               src={displayTrack.cover}
               alt={`${displayTrack.title} album art`}
-              className="h-10 w-10 object-cover rounded mr-3"
+              className="h-8 w-8 sm:h-10 sm:w-10 object-cover rounded mr-2 sm:mr-3 flex-shrink-0"
             />
-            <div className="flex-1 min-w-0">
-              <h4 className="text-xs font-medium text-white truncate">{displayTrack.title}</h4>
+            <div className="flex-1 min-w-0 mr-2">
+              <h4 className="text-xs sm:text-sm font-medium text-white truncate">{displayTrack.title}</h4>
               <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
-              {getTrackStatus() && (
-                <p className={`text-xs ${audioError ? 'text-red-400' : audioLoading ? 'text-blue-400' : 'text-yellow-400'}`}>
-                  {getTrackStatus()}
-                </p>
-              )}
             </div>
             
             {/* Mobile Play Button */}
             <button 
-              className={`bg-red-600 rounded-full p-2 text-white hover:scale-105 transition disabled:opacity-50 ${
-                audioLoading ? 'animate-pulse' : ''
+              className={`bg-red-600 rounded-full p-1.5 sm:p-2 text-white hover:scale-105 transition disabled:opacity-50 flex-shrink-0 ${
+                isPlaying ? 'animate-pulse' : ''
               }`}
               onClick={onPlayPause}
               disabled={!currentTrack?.audioUrl}
             >
-              {isPlaying && !audioError && !audioLoading ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              {isPlaying ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
             </button>
           </div>
           
           {/* Progress Bar - Mobile */}
           <div className="flex items-center space-x-2 text-xs text-gray-400 mb-2">
-            <span className="text-xs">{formatTime(currentTime)}</span>
+            <span className="text-[10px] sm:text-xs w-8 text-right">{formatTime(currentTime)}</span>
             <div className="flex-1">
               <Slider 
                 value={[currentTime]} 
                 max={effectiveDuration}
                 step={1}
-                onValueChange={handleSeek}
+                onValueChange={(values) => handleSeek(values[0])}
                 className="cursor-pointer progress-slider"
-                disabled={effectiveDuration === 0 || audioError}
+                disabled={effectiveDuration === 0}
               />
             </div>
-            <span className="text-xs">{formatTime(effectiveDuration)}</span>
+            <span className="text-[10px] sm:text-xs w-8">{formatTime(effectiveDuration)}</span>
           </div>
           
           {/* Controls - Mobile */}
           <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1 sm:space-x-2">
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
                 onClick={onPrevious}
                 disabled={!onPrevious}
               >
-                <SkipBack className="h-4 w-4" />
+                <SkipBack className="h-3 w-3 sm:h-4 sm:w-4" />
               </button>
               
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
                 onClick={skipBackward}
-                disabled={!currentTrack?.audioUrl || audioError}
+                disabled={!currentTrack?.audioUrl}
                 title="Skip back 10 seconds"
               >
                 <RotateCcw className="h-3 w-3" />
               </button>
               
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
                 onClick={skipForward}
-                disabled={!currentTrack?.audioUrl || audioError}
+                disabled={!currentTrack?.audioUrl}
                 title="Skip forward 10 seconds"
               >
                 <RotateCw className="h-3 w-3" />
               </button>
               
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
                 onClick={onNext}
                 disabled={!onNext}
               >
-                <SkipForward className="h-4 w-4" />
+                <SkipForward className="h-3 w-3 sm:h-4 sm:w-4" />
               </button>
             </div>
             
             {/* Volume Control - Mobile */}
             <div className="flex items-center">
-              <VolumeIcon className="h-4 w-4 text-gray-400 mr-1" />
-              <div className="w-16">
+              <VolumeIcon className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 mr-1" />
+              <div className="w-12 sm:w-16">
                 <Slider 
                   value={[volume]} 
                   max={100}
@@ -488,40 +155,35 @@ const MusicPlayer = ({
         </div>
 
         {/* Desktop Layout */}
-        <div className="hidden md:flex md:flex-row items-center">
+        <div className="hidden md:flex md:flex-row items-center h-full">
           {/* Track Info */}
-          <div className="flex items-center w-1/4">
+          <div className="flex items-center w-1/4 min-w-[200px] max-w-[300px]">
             <img 
               src={displayTrack.cover}
               alt={`${displayTrack.title} album art`}
-              className="h-12 w-12 object-cover rounded mr-3"
+              className="h-10 w-10 lg:h-12 lg:w-12 object-cover rounded mr-3 flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-medium text-white truncate">{displayTrack.title}</h4>
               <p className="text-xs text-gray-400 truncate">{displayTrack.artist}</p>
-              {getTrackStatus() && (
-                <p className={`text-xs ${audioError ? 'text-red-400' : audioLoading ? 'text-blue-400' : 'text-yellow-400'}`}>
-                  {getTrackStatus()}
-                </p>
-              )}
             </div>
           </div>
           
           {/* Player Controls */}
-          <div className="flex flex-col w-1/2 px-4">
-            <div className="flex justify-center items-center space-x-3 mb-3">
+          <div className="flex flex-col flex-1 px-4 max-w-[800px] mx-auto">
+            <div className="flex justify-center items-center space-x-2 lg:space-x-3 mb-2 lg:mb-3">
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
                 onClick={onPrevious}
                 disabled={!onPrevious}
               >
-                <SkipBack className="h-5 w-5" />
+                <SkipBack className="h-4 w-4 lg:h-5 lg:w-5" />
               </button>
               
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
                 onClick={skipBackward}
-                disabled={!currentTrack?.audioUrl || audioError}
+                disabled={!currentTrack?.audioUrl}
                 title="Skip back 10 seconds"
               >
                 <RotateCcw className="h-4 w-4" />
@@ -529,52 +191,52 @@ const MusicPlayer = ({
               
               <button 
                 className={`bg-red-600 rounded-full p-2 text-white hover:scale-105 transition disabled:opacity-50 ${
-                  audioLoading ? 'animate-pulse' : ''
+                  isPlaying ? 'animate-pulse' : ''
                 }`}
                 onClick={onPlayPause}
                 disabled={!currentTrack?.audioUrl}
               >
-                {isPlaying && !audioError && !audioLoading ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                {isPlaying ? <Pause className="h-4 w-4 lg:h-5 lg:w-5" /> : <Play className="h-4 w-4 lg:h-5 lg:w-5" />}
               </button>
               
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
                 onClick={skipForward}
-                disabled={!currentTrack?.audioUrl || audioError}
+                disabled={!currentTrack?.audioUrl}
                 title="Skip forward 10 seconds"
               >
                 <RotateCw className="h-4 w-4" />
               </button>
               
               <button 
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
+                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors p-1"
                 onClick={onNext}
                 disabled={!onNext}
               >
-                <SkipForward className="h-5 w-5" />
+                <SkipForward className="h-4 w-4 lg:h-5 lg:w-5" />
               </button>
             </div>
             
             <div className="flex items-center space-x-3 text-xs text-gray-400">
-              <span>{formatTime(currentTime)}</span>
+              <span className="w-10 text-right">{formatTime(currentTime)}</span>
               <div className="flex-1">
                 <Slider 
                   value={[currentTime]} 
                   max={effectiveDuration}
                   step={1}
-                  onValueChange={handleSeek}
+                  onValueChange={(values) => handleSeek(values[0])}
                   className="cursor-pointer progress-slider"
-                  disabled={effectiveDuration === 0 || audioError}
+                  disabled={effectiveDuration === 0}
                 />
               </div>
-              <span>{formatTime(effectiveDuration)}</span>
+              <span className="w-10">{formatTime(effectiveDuration)}</span>
             </div>
           </div>
           
           {/* Volume Control */}
-          <div className="flex items-center justify-end w-1/4">
-            <VolumeIcon className="h-5 w-5 text-gray-400 mr-2" />
-            <div className="w-24">
+          <div className="flex items-center justify-end w-1/4 min-w-[120px] max-w-[200px] pl-4">
+            <VolumeIcon className="h-4 w-4 lg:h-5 lg:w-5 text-gray-400 mr-2" />
+            <div className="w-20 lg:w-24">
               <Slider 
                 value={[volume]} 
                 max={100}
