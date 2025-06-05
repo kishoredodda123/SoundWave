@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Album as AlbumIcon, Loader2 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
@@ -37,7 +38,7 @@ const Albums = () => {
 
   return (
     <MainLayout>
-      <div className="px-2 md:px-4 py-4 md:py-6">
+      <div className="px-4 md:px-6 py-4 md:py-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <div className="flex items-center">
             <div className="bg-music-primary p-4 rounded-lg mr-4">
@@ -52,7 +53,7 @@ const Albums = () => {
             <Loader2 className="h-8 w-8 animate-spin text-music-primary" />
           </div>
         ) : albums.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6 mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6 mt-6">
             {albums.map((album) => (
               <AlbumCard 
                 key={album.id} 

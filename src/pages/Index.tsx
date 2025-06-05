@@ -1,3 +1,4 @@
+
 import MainLayout from '@/components/layout/MainLayout';
 import FeaturedSection from '@/components/sections/FeaturedSection';
 import TrendingSection from '@/components/sections/TrendingSection';

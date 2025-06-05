@@ -9,6 +9,32 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      liked_tracks: {
+        Row: {
+          created_at: string
+          id: string
+          track_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          track_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          track_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liked_tracks_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: false
+            referencedRelation: "music_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       music_files: {
         Row: {
           album: string | null
@@ -23,7 +49,7 @@ export type Database = {
           genre: string | null
           id: string
           release_date: string | null
-          title: string
+          title: string | null
           updated_at: string
         }
         Insert: {
@@ -39,7 +65,7 @@ export type Database = {
           genre?: string | null
           id?: string
           release_date?: string | null
-          title: string
+          title?: string | null
           updated_at?: string
         }
         Update: {
@@ -55,62 +81,10 @@ export type Database = {
           genre?: string | null
           id?: string
           release_date?: string | null
-          title?: string
+          title?: string | null
           updated_at?: string
         }
         Relationships: []
-      }
-      liked_tracks: {
-        Row: {
-          id: string
-          track_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          track_id: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          track_id?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "liked_tracks_track_id_fkey"
-            columns: ["track_id"]
-            isOneToOne: false
-            referencedRelation: "music_files"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      recently_played: {
-        Row: {
-          id: string
-          track_id: string
-          played_at: string
-        }
-        Insert: {
-          id?: string
-          track_id: string
-          played_at?: string
-        }
-        Update: {
-          id?: string
-          track_id?: string
-          played_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "recently_played_track_id_fkey"
-            columns: ["track_id"]
-            isOneToOne: false
-            referencedRelation: "music_files"
-            referencedColumns: ["id"]
-          }
-        ]
       }
       playlist_tracks: {
         Row: {
@@ -148,7 +122,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "music_files"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       playlists: {
