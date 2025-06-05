@@ -285,17 +285,20 @@ const addTrackToAlbum = async (albumId: string, track: Omit<Track, 'id' | 'durat
       return null;
     }
 
-    // Add the new track using the admin client
+    // Add the new track using the admin client - properly linking to existing album
     const { data: newTrack, error: trackError } = await supabaseAdmin
       .from('music_files')
       .insert([{
         title: track.title,
         artist: track.artist,
-        album: albumData.title,
+        album: albumData.title, // Use the existing album title, not track title
         cover_url: track.cover || albumData.cover_url,
         audio_url: track.audioUrl,
         release_date: albumData.release_date,
-        genre: track.genre || 'Album Track'
+        genre: track.genre || 'Album Track',
+        duration: 0, // Default duration
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }])
       .select()
       .single();
