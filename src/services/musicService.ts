@@ -1,3 +1,4 @@
+
 import { supabase, supabaseAdmin } from "@/integrations/supabase/client";
 
 // Types for music data
@@ -38,32 +39,6 @@ const LIKED_SONGS_KEY = 'liked_songs';
 const RECENTLY_PLAYED_KEY = 'recently_played';
 const PLAYLISTS_KEY = 'playlists';
 const ALBUMS_KEY = 'albums';
-
-// Public tracks with working audio URLs
-const publicTracks: Track[] = [
-  {
-    id: 'public-track-1',
-    title: 'My Public Song',
-    artist: 'Your Artist',
-    album: 'Public Album',
-    duration: 180,
-    cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://u.pcloud.link/publink/show?code=XZORNS5ZSnViH86claLQ0q3lVijrO48qffw7',
-    releaseDate: '2024-01-01',
-    genre: 'Public',
-  },
-  {
-    id: 'public-track-2',
-    title: 'Harom Harom Hara',
-    artist: 'Unknown Artist',
-    album: 'Unknown Album',
-    duration: 240,
-    cover: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=300&h=300',
-    audioUrl: 'https://resilient-cheesecake-34437e.netlify.app/%5BiSongs.info%5D%2001%20-%20Harom%20Harom%20Hara.mp3',
-    releaseDate: '2024-01-01',
-    genre: 'Public',
-  }
-];
 
 // Helper functions for local storage
 const getFromStorage = (key: string) => {
@@ -111,37 +86,26 @@ const getAllTracks = async (): Promise<Track[]> => {
   return tracks.map(mapDatabaseTrackToTrack);
 };
 
-// Function to add track to recently played
-const addToRecentlyPlayed = async (track: Track) => {
-  const { error } = await supabase
-    .from('recently_played')
-    .insert([{ track_id: track.id }]);
-
-  if (error) {
+// Function to add track to recently played (using localStorage)
+const addToRecentlyPlayed = (track: Track) => {
+  try {
+    const recentlyPlayed = getFromStorage(RECENTLY_PLAYED_KEY);
+    
+    // Remove track if it already exists
+    const filteredTracks = recentlyPlayed.filter((t: Track) => t.id !== track.id);
+    
+    // Add track to the beginning
+    const updatedTracks = [track, ...filteredTracks].slice(0, 10); // Keep only last 10
+    
+    saveToStorage(RECENTLY_PLAYED_KEY, updatedTracks);
+  } catch (error) {
     console.error('Error adding track to recently played:', error);
   }
 };
 
-// Function to get recently played tracks
-const getRecentlyPlayed = async (): Promise<Track[]> => {
-  const { data: recentlyPlayed, error } = await supabase
-    .from('recently_played')
-    .select(`
-      track_id,
-      music_files (*)
-    `)
-    .order('played_at', { ascending: false })
-    .limit(10);
-
-  if (error) {
-    console.error('Error fetching recently played tracks:', error);
-    return [];
-  }
-
-  return recentlyPlayed
-    .map(rp => rp.music_files)
-    .filter(Boolean)
-    .map(mapDatabaseTrackToTrack);
+// Function to get recently played tracks (from localStorage)
+const getRecentlyPlayed = (): Track[] => {
+  return getFromStorage(RECENTLY_PLAYED_KEY);
 };
 
 // Function to check if track is liked
@@ -355,7 +319,8 @@ const getAlbums = async (): Promise<Album[]> => {
     const { data: albumTracks, error: albumError } = await supabase
       .from('music_files')
       .select('*')
-      .not('album', 'is', null);
+      .not('album', 'is', null)
+      .order('created_at', { ascending: false });
 
     if (albumError) {
       console.error('Error fetching albums:', albumError);
@@ -449,20 +414,6 @@ const searchTracks = async (query: string): Promise<Track[]> => {
   }
 
   return tracks.map(mapDatabaseTrackToTrack);
-};
-
-// Function to get audio duration from URL
-const getAudioDuration = (audioUrl: string): Promise<number> => {
-  return new Promise((resolve) => {
-    const audio = new Audio();
-    audio.addEventListener('loadedmetadata', () => {
-      resolve(audio.duration || 180); // Fallback to 3 minutes if can't detect
-    });
-    audio.addEventListener('error', () => {
-      resolve(180); // Fallback duration on error
-    });
-    audio.src = audioUrl;
-  });
 };
 
 // Function to update album
