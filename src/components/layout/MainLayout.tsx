@@ -17,7 +17,7 @@ const MainLayout = ({
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-gradient-to-br from-music-secondary via-music-darkBg to-music-secondary">
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto pb-[200px] sm:pb-[180px] md:pb-32 pt-4 md:pt-6 px-4 md:px-6">
+        <main className="flex-1 overflow-y-auto pb-[280px] sm:pb-[260px] md:pb-32 pt-4 md:pt-6 px-4 md:px-6 focus:outline-none" tabIndex={0}>
           <div className="max-w-[1800px] mx-auto w-full h-full relative">
             {children}
           </div>
