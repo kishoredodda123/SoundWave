@@ -3,7 +3,7 @@ import { Play, Heart } from 'lucide-react';
 import { Track } from '@/services/musicService';
 import { useMusicPlayerContext } from '@/contexts/MusicPlayerContext';
 import { musicService } from '@/services/musicService';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface TrackCardProps {
   track: Track;
@@ -16,6 +16,8 @@ const TrackCard = ({ track, playlist, index, onClick }: TrackCardProps) => {
   const { playTrack } = useMusicPlayerContext();
   const [isLiked, setIsLiked] = useState(false);
   const [isLikeLoading, setIsLikeLoading] = useState(false);
+  const [actualDuration, setActualDuration] = useState<number>(track.duration || 0);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     const checkLikeStatus = async () => {
@@ -30,8 +32,30 @@ const TrackCard = ({ track, playlist, index, onClick }: TrackCardProps) => {
     checkLikeStatus();
   }, [track.id]);
 
+  // Load audio metadata to get duration
+  useEffect(() => {
+    if (track.audioUrl && !track.duration) {
+      const audio = new Audio();
+      audio.src = track.audioUrl;
+      
+      const handleLoadedMetadata = () => {
+        if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+          setActualDuration(audio.duration);
+        }
+      };
+
+      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.load();
+
+      return () => {
+        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      };
+    }
+  }, [track.audioUrl, track.duration]);
+
   // Format duration to MM:SS
   const formatDuration = (seconds: number) => {
+    if (!seconds || seconds === 0) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
@@ -99,7 +123,7 @@ const TrackCard = ({ track, playlist, index, onClick }: TrackCardProps) => {
           <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
         </button>
         <div className="text-xs text-gray-400">
-          {track.duration ? formatDuration(track.duration) : '0:00'}
+          {formatDuration(actualDuration)}
         </div>
       </div>
     </div>
