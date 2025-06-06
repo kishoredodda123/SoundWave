@@ -1,18 +1,30 @@
+
 import { Link } from 'react-router-dom';
 import { Home, Search, PlusCircle, Heart, Music, Album, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+
 const Sidebar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
+  
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
   };
+  
   return <>
-      {/* Mobile Menu Button */}
-      <button className="md:hidden fixed top-4 left-4 z-50 bg-music-secondary p-2 rounded-md border border-gray-800" onClick={toggleMobileMenu}>
-        {isMobileMenuOpen ? <X className="h-6 w-6 text-white" /> : <Menu className="h-6 w-6 text-white" />}
+      {/* Mobile Menu Button - More integrated design */}
+      <button 
+        className="md:hidden fixed top-4 left-4 z-50 p-3 rounded-full bg-black/20 backdrop-blur-sm border border-white/10 hover:bg-black/30 transition-all duration-200" 
+        onClick={toggleMobileMenu}
+      >
+        {isMobileMenuOpen ? (
+          <X className="h-5 w-5 text-white" />
+        ) : (
+          <Menu className="h-5 w-5 text-white" />
+        )}
       </button>
 
       {/* Mobile Overlay */}
@@ -70,4 +82,5 @@ const Sidebar = () => {
       </aside>
     </>;
 };
+
 export default Sidebar;

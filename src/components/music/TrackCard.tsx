@@ -1,3 +1,4 @@
+
 import { Play, Heart } from 'lucide-react';
 import { Track } from '@/services/musicService';
 import { useMusicPlayerContext } from '@/contexts/MusicPlayerContext';
@@ -98,7 +99,7 @@ const TrackCard = ({ track, playlist, index, onClick }: TrackCardProps) => {
           <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
         </button>
         <div className="text-xs text-gray-400">
-          {formatDuration(track.duration)}
+          {track.duration ? formatDuration(track.duration) : '0:00'}
         </div>
       </div>
     </div>
