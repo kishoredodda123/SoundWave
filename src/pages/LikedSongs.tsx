@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { Heart, Loader2 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
@@ -59,7 +60,7 @@ const LikedSongs = () => {
             <Loader2 className="h-8 w-8 animate-spin text-music-primary" />
           </div>
         ) : likedTracks.length > 0 ? (
-          <div className="mt-8 space-y-1">
+          <div className="mt-8 space-y-1 mb-8">
             {likedTracks.map((track) => (
               <TrackCard 
                 key={track.id} 
@@ -69,7 +70,7 @@ const LikedSongs = () => {
             ))}
           </div>
         ) : (
-          <div className="mt-8">
+          <div className="mt-8 mb-8">
             <p className="text-gray-400">No liked songs yet. Start liking songs by clicking the heart icon!</p>
           </div>
         )}

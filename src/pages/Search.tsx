@@ -72,13 +72,13 @@ const Search = () => {
                 ))}
               </div>
             ) : searchResults.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-2 mb-8">
                 {searchResults.map((track) => (
                   <TrackCard key={track.id} track={track} />
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 md:py-12 text-gray-400">
+              <div className="text-center py-8 md:py-12 text-gray-400 mb-8">
                 <SearchIcon className="h-8 w-8 md:h-12 md:w-12 mx-auto mb-4 opacity-50" />
                 <p className="text-base md:text-lg">No results found for "{searchQuery}"</p>
                 <p className="text-xs md:text-sm mt-2">Try searching for something else</p>
@@ -88,7 +88,7 @@ const Search = () => {
         )}
         
         {searchQuery.trim().length === 0 && (
-          <div className="text-center py-8 md:py-12 text-gray-400">
+          <div className="text-center py-8 md:py-12 text-gray-400 mb-8">
             <SearchIcon className="h-8 w-8 md:h-12 md:w-12 mx-auto mb-4 opacity-50" />
             <p className="text-base md:text-lg">Start typing to search for music</p>
             <p className="text-xs md:text-sm mt-2">Find your favorite songs, artists, and albums</p>

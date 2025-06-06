@@ -61,7 +61,7 @@ const MainLayout = ({
         <Sidebar />
         <main 
           ref={mainRef}
-          className="flex-1 overflow-y-auto pb-[200px] md:pb-32 pt-4 md:pt-6 px-4 md:px-6 focus:outline-none" 
+          className="flex-1 overflow-y-auto pb-[280px] sm:pb-[240px] md:pb-32 pt-4 md:pt-6 px-4 md:px-6 focus:outline-none" 
           tabIndex={0}
           role="main"
           aria-label="Main content area"

@@ -53,7 +53,7 @@ const Albums = () => {
             <Loader2 className="h-8 w-8 animate-spin text-music-primary" />
           </div>
         ) : albums.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6 mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6 mt-6 mb-8">
             {albums.map((album) => (
               <AlbumCard 
                 key={album.id} 
@@ -63,7 +63,7 @@ const Albums = () => {
             ))}
           </div>
         ) : (
-          <div className="mt-8">
+          <div className="mt-8 mb-8">
             <p className="text-gray-400">No albums created yet. Create your first album in the Admin page!</p>
           </div>
         )}

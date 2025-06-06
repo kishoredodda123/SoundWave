@@ -131,7 +131,7 @@ const AlbumDetail = () => {
             </div>
           </div>
 
-          <div className="mb-[160px] sm:mb-[140px] md:mb-32">
+          <div className="mb-8">
             <div className="space-y-2">
               {album.tracks.map((track, index) => (
                 <TrackCard

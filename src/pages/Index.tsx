@@ -154,7 +154,7 @@ const Index = () => {
         </div>
         
         {/* Recently Played */}
-        <section className="mb-[160px] sm:mb-[140px] md:mb-32">
+        <section className="mb-8">
           {recentlyPlayed.length > 0 ? (
             <TrackCarousel tracks={recentlyPlayed} title="Recently Played" />
           ) : (
