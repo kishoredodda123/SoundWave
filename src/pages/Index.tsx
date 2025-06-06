@@ -43,8 +43,8 @@ const Index = () => {
     navigate(`/albums/${albumId}`);
   };
 
-  // Album carousel logic
-  const albumsPerSlide = isMobile ? 4 : 5;
+  // Album carousel logic - 4 for mobile, 6 for desktop
+  const albumsPerSlide = isMobile ? 4 : 6;
   const totalAlbumSlides = Math.ceil(albums.length / albumsPerSlide);
   
   const nextAlbumSlide = () => {
@@ -113,7 +113,7 @@ const Index = () => {
                 </div>
                 
                 <div className="relative">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-6">
                     {getCurrentAlbums().map(album => (
                       <AlbumCard key={album.id} album={album} onClick={() => handleAlbumClick(album.id)} />
                     ))}
