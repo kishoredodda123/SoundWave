@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, Music, Album as AlbumIcon, Edit2, Save, X, Loader2, Smartphone } from "lucide-react";
 import MainLayout from '@/components/layout/MainLayout';
 import { musicService, Album } from '@/services/musicService';
+import { downloadService, DownloadLink } from '@/services/downloadService';
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState<'albums' | 'applink'>('albums');
@@ -30,7 +31,12 @@ const Admin = () => {
   const [editingTrack, setEditingTrack] = useState<string | null>(null);
   const [editAlbumData, setEditAlbumData] = useState({ title: '', cover: '' });
   const [editTrackData, setEditTrackData] = useState({ title: '', artist: '', audioUrl: '' });
-  const [downloadLink, setDownloadLink] = useState('');
+  
+  // Download links state
+  const [downloadLinks, setDownloadLinks] = useState<DownloadLink[]>([]);
+  const [androidLink, setAndroidLink] = useState('');
+  const [iosLink, setIosLink] = useState('');
+  const [isSavingDownloadLink, setIsSavingDownloadLink] = useState(false);
 
   const loadAlbums = async () => {
     try {
@@ -48,21 +54,109 @@ const Admin = () => {
     }
   };
 
+  const loadDownloadLinks = async () => {
+    try {
+      const links = await downloadService.getDownloadLinks();
+      setDownloadLinks(links);
+      
+      const android = links.find(link => link.platform === 'android');
+      const ios = links.find(link => link.platform === 'ios');
+      
+      setAndroidLink(android?.download_url || '');
+      setIosLink(ios?.download_url || '');
+    } catch (error) {
+      console.error('Error loading download links:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load download links. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
     loadAlbums();
+    loadDownloadLinks();
   }, []);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('androidDownloadLink');
-    if (saved) setDownloadLink(saved);
-  }, []);
+  const handleSaveDownloadLink = async (platform: 'android' | 'ios') => {
+    const linkValue = platform === 'android' ? androidLink : iosLink;
+    
+    if (!linkValue.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid download URL.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const handleDownloadLinkSave = () => {
-    localStorage.setItem('androidDownloadLink', downloadLink);
-    toast({
-      title: "Saved!",
-      description: "Android app download link updated.",
-    });
+    // Validate URL format
+    try {
+      new URL(linkValue);
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid URL format.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingDownloadLink(true);
+    try {
+      const success = await downloadService.updateDownloadLink(platform, linkValue, true);
+      
+      if (success) {
+        await loadDownloadLinks();
+        toast({
+          title: "Success!",
+          description: `${platform === 'android' ? 'Android' : 'iOS'} download link updated successfully.`,
+        });
+      } else {
+        throw new Error('Failed to update download link');
+      }
+    } catch (error) {
+      console.error('Error saving download link:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update download link. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingDownloadLink(false);
+    }
+  };
+
+  const handleClearDownloadLink = async (platform: 'android' | 'ios') => {
+    setIsSavingDownloadLink(true);
+    try {
+      const success = await downloadService.updateDownloadLink(platform, '', false);
+      
+      if (success) {
+        if (platform === 'android') {
+          setAndroidLink('');
+        } else {
+          setIosLink('');
+        }
+        await loadDownloadLinks();
+        toast({
+          title: "Success!",
+          description: `${platform === 'android' ? 'Android' : 'iOS'} download link cleared.`,
+        });
+      } else {
+        throw new Error('Failed to clear download link');
+      }
+    } catch (error) {
+      console.error('Error clearing download link:', error);
+      toast({
+        title: "Error",
+        description: "Failed to clear download link. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingDownloadLink(false);
+    }
   };
 
   const handleCreateAlbum = async () => {
@@ -318,7 +412,7 @@ const Admin = () => {
             }`}
           >
             <Smartphone className="h-4 w-4 mr-2" />
-            App Download Link
+            App Download Links
           </Button>
         </div>
 
@@ -619,59 +713,117 @@ const Admin = () => {
         )}
 
         {activeTab === 'applink' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center text-lg sm:text-xl">
-                <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                App Download Link Management
-              </CardTitle>
-              <CardDescription className="text-sm">
-                Manage the Android APK download link that appears on the Download page.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="downloadLink" className="text-sm font-medium">Android APK Download URL</Label>
-                  <Input
-                    id="downloadLink"
-                    type="url"
-                    value={downloadLink}
-                    onChange={(e) => setDownloadLink(e.target.value)}
-                    placeholder="https://example.com/soundwave.apk"
-                    className="mt-2"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    This link will be used for the Android download button on the Download page.
-                  </p>
-                </div>
-                
-                <div className="flex gap-3">
-                  <Button 
-                    onClick={handleDownloadLinkSave} 
-                    className="bg-music-primary text-black hover:bg-music-highlight"
-                  >
-                    Save Download Link
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setDownloadLink('')}
-                  >
-                    Clear Link
-                  </Button>
-                </div>
-                
-                {downloadLink && (
-                  <div className="mt-4 p-4 bg-music-cardBg rounded-lg border border-gray-700">
-                    <p className="text-sm text-gray-300 mb-2">Current download link:</p>
-                    <p className="text-xs text-gray-400 break-all font-mono bg-gray-800 p-2 rounded">
-                      {downloadLink}
-                    </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Android Download Link */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-lg sm:text-xl">
+                  <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                  Android App Download
+                </CardTitle>
+                <CardDescription className="text-sm">
+                  Manage the Android APK download link for your app.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="androidLink" className="text-sm font-medium">Android APK Download URL</Label>
+                    <Input
+                      id="androidLink"
+                      type="url"
+                      value={androidLink}
+                      onChange={(e) => setAndroidLink(e.target.value)}
+                      placeholder="https://example.com/soundwave.apk"
+                      className="mt-2"
+                    />
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  
+                  <div className="flex gap-3">
+                    <Button 
+                      onClick={() => handleSaveDownloadLink('android')} 
+                      className="bg-music-primary text-black hover:bg-music-highlight"
+                      disabled={isSavingDownloadLink}
+                    >
+                      {isSavingDownloadLink ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Save Android Link
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={() => handleClearDownloadLink('android')}
+                      disabled={isSavingDownloadLink}
+                    >
+                      Clear Link
+                    </Button>
+                  </div>
+                  
+                  {androidLink && (
+                    <div className="mt-4 p-4 bg-music-cardBg rounded-lg border border-gray-700">
+                      <p className="text-sm text-gray-300 mb-2">Current Android download link:</p>
+                      <p className="text-xs text-gray-400 break-all font-mono bg-gray-800 p-2 rounded">
+                        {androidLink}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* iOS Download Link */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-lg sm:text-xl">
+                  <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                  iOS App Download
+                </CardTitle>
+                <CardDescription className="text-sm">
+                  Manage the iOS app download link for your app.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="iosLink" className="text-sm font-medium">iOS App Store URL</Label>
+                    <Input
+                      id="iosLink"
+                      type="url"
+                      value={iosLink}
+                      onChange={(e) => setIosLink(e.target.value)}
+                      placeholder="https://apps.apple.com/app/soundwave/id123456789"
+                      className="mt-2"
+                    />
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <Button 
+                      onClick={() => handleSaveDownloadLink('ios')} 
+                      className="bg-music-primary text-black hover:bg-music-highlight"
+                      disabled={isSavingDownloadLink}
+                    >
+                      {isSavingDownloadLink ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Save iOS Link
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={() => handleClearDownloadLink('ios')}
+                      disabled={isSavingDownloadLink}
+                    >
+                      Clear Link
+                    </Button>
+                  </div>
+                  
+                  {iosLink && (
+                    <div className="mt-4 p-4 bg-music-cardBg rounded-lg border border-gray-700">
+                      <p className="text-sm text-gray-300 mb-2">Current iOS download link:</p>
+                      <p className="text-xs text-gray-400 break-all font-mono bg-gray-800 p-2 rounded">
+                        {iosLink}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </MainLayout>

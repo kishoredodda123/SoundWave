@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      app_download_links: {
+        Row: {
+          created_at: string
+          download_url: string | null
+          id: string
+          is_active: boolean
+          platform: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          download_url?: string | null
+          id?: string
+          is_active?: boolean
+          platform: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          download_url?: string | null
+          id?: string
+          is_active?: boolean
+          platform?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       liked_tracks: {
         Row: {
           created_at: string

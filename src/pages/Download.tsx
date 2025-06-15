@@ -2,15 +2,43 @@
 import { useEffect, useState } from 'react';
 import { Download as DownloadIcon, Smartphone, Apple } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
-
-const getDownloadLink = () => localStorage.getItem('androidDownloadLink') || '';
+import { downloadService } from '@/services/downloadService';
 
 const Download = () => {
-  const [androidLink, setAndroidLink] = useState('');
+  const [androidLink, setAndroidLink] = useState<string | null>(null);
+  const [iosLink, setIosLink] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setAndroidLink(getDownloadLink());
+    const loadDownloadLinks = async () => {
+      try {
+        const androidUrl = await downloadService.getActiveDownloadLink('android');
+        const iosUrl = await downloadService.getActiveDownloadLink('ios');
+        
+        setAndroidLink(androidUrl);
+        setIosLink(iosUrl);
+      } catch (error) {
+        console.error('Error loading download links:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadDownloadLinks();
   }, []);
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="min-h-[80vh] flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-music-primary mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading download options...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -29,9 +57,15 @@ const Download = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-md">
           {/* Android Download */}
-          <div className="bg-gradient-to-br from-music-cardBg to-music-secondary border border-gray-700 rounded-2xl p-6 hover:border-music-primary transition-all duration-300 group">
+          <div className={`bg-gradient-to-br from-music-cardBg to-music-secondary border border-gray-700 rounded-2xl p-6 transition-all duration-300 ${
+            androidLink ? 'hover:border-music-primary group' : 'opacity-75'
+          }`}>
             <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-green-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-4 transition-transform ${
+                androidLink 
+                  ? 'bg-green-600 group-hover:scale-110' 
+                  : 'bg-gray-600'
+              }`}>
                 <Smartphone className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Android</h3>
@@ -58,26 +92,54 @@ const Download = () => {
           </div>
 
           {/* iPhone Download */}
-          <div className="bg-gradient-to-br from-music-cardBg to-music-secondary border border-gray-700 rounded-2xl p-6 opacity-75">
+          <div className={`bg-gradient-to-br from-music-cardBg to-music-secondary border border-gray-700 rounded-2xl p-6 transition-all duration-300 ${
+            iosLink ? 'hover:border-music-primary group' : 'opacity-75'
+          }`}>
             <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-gray-600 rounded-xl flex items-center justify-center mb-4">
+              <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-4 transition-transform ${
+                iosLink 
+                  ? 'bg-blue-600 group-hover:scale-110' 
+                  : 'bg-gray-600'
+              }`}>
                 <Apple className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">iPhone</h3>
-              <button
-                className="w-full bg-gray-600 text-gray-300 font-semibold py-3 px-6 rounded-xl cursor-not-allowed"
-                disabled
-              >
-                Coming Soon
-              </button>
+              {iosLink ? (
+                <a
+                  href={iosLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-blue-500/25"
+                >
+                  Download App
+                </a>
+              ) : (
+                <button
+                  className="w-full bg-gray-600 text-gray-300 font-semibold py-3 px-6 rounded-xl cursor-not-allowed"
+                  disabled
+                >
+                  Coming Soon
+                </button>
+              )}
             </div>
           </div>
         </div>
 
         <div className="mt-12 text-center">
           <div className="inline-flex items-center gap-2 bg-music-cardBg border border-gray-700 rounded-full px-6 py-3">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-gray-300 text-sm">Available for Android • iOS coming soon</span>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${
+              androidLink || iosLink ? 'bg-green-500' : 'bg-gray-500'
+            }`}></div>
+            <span className="text-gray-300 text-sm">
+              {androidLink && iosLink 
+                ? 'Available for Android & iOS' 
+                : androidLink 
+                ? 'Available for Android • iOS coming soon'
+                : iosLink
+                ? 'Available for iOS • Android coming soon'
+                : 'Coming soon for all platforms'
+              }
+            </span>
           </div>
         </div>
       </div>
