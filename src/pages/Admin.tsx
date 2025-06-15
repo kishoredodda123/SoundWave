@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -30,6 +29,7 @@ const Admin = () => {
   const [editingTrack, setEditingTrack] = useState<string | null>(null);
   const [editAlbumData, setEditAlbumData] = useState({ title: '', cover: '' });
   const [editTrackData, setEditTrackData] = useState({ title: '', artist: '', audioUrl: '' });
+  const [downloadLink, setDownloadLink] = useState('');
 
   const loadAlbums = async () => {
     try {
@@ -51,6 +51,19 @@ const Admin = () => {
   useEffect(() => {
     loadAlbums();
   }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('androidDownloadLink');
+    if (saved) setDownloadLink(saved);
+  }, []);
+
+  const handleDownloadLinkSave = () => {
+    localStorage.setItem('androidDownloadLink', downloadLink);
+    toast({
+      title: "Saved!",
+      description: "Android app download link updated.",
+    });
+  };
 
   const handleCreateAlbum = async () => {
     if (!albumData.title) {
@@ -575,6 +588,23 @@ const Admin = () => {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Download Link Editor */}
+      <div className="py-6">
+        <h2 className="text-lg font-bold mb-4">App Download Link</h2>
+        <div className="flex flex-col sm:flex-row gap-3 items-center">
+          <input
+            type="text"
+            className="border px-3 py-2 text-black rounded w-full max-w-lg"
+            placeholder="Paste Android APK download link here"
+            value={downloadLink}
+            onChange={e => setDownloadLink(e.target.value)}
+          />
+          <Button onClick={handleDownloadLinkSave} className="bg-music-primary text-black hover:bg-music-highlight">
+            Save
+          </Button>
+        </div>
       </div>
     </MainLayout>
   );
