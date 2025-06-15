@@ -23,7 +23,8 @@ export const getDownloadLinks = async (): Promise<DownloadLink[]> => {
       return [];
     }
 
-    return data || [];
+    // Type assertion to ensure platform is correctly typed
+    return (data || []) as DownloadLink[];
   } catch (error) {
     console.error('Error in getDownloadLinks:', error);
     return [];
