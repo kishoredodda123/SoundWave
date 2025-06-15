@@ -45,7 +45,7 @@ export default function Login() {
     setIsLoading(true);
     try {
       // Data is already validated by zod schema, so we can safely cast it
-      await authService.signIn(data);
+      await authService.signIn(data as { email: string; password: string });
       toast({
         title: 'Welcome back!',
         description: 'You have successfully signed in.',
