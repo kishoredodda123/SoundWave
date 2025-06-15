@@ -1,23 +1,49 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, EyeOff } from 'lucide-react';
+import { authService } from '@/services/authService';
+import { useToast } from '@/hooks/use-toast';
 
 export default function AdminLogin() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { login } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const success = login(username, password);
-    if (success) {
+  // Redirect if already logged in
+  React.useEffect(() => {
+    if (user) {
       navigate('/admin');
-    } else {
-      setError('Invalid username or password');
+    }
+  }, [user, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      await authService.signIn({ email, password });
+      toast({
+        title: 'Admin login successful',
+        description: 'Welcome back!',
+      });
+      navigate('/admin');
+    } catch (error: any) {
+      setError('Invalid email or password');
+      toast({
+        title: 'Error signing in',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -32,18 +58,18 @@ export default function AdminLogin() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="username" className="sr-only">
-                Username
+              <label htmlFor="email" className="sr-only">
+                Email
               </label>
               <input
-                id="username"
-                name="username"
-                type="text"
+                id="email"
+                name="email"
+                type="email"
                 required
                 className="relative block w-full rounded-md border border-input bg-background px-3 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                placeholder="Enter username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter admin email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="relative">
@@ -79,13 +105,14 @@ export default function AdminLogin() {
           <div>
             <button
               type="submit"
-              className="group relative flex w-full justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              disabled={isLoading}
+              className="group relative flex w-full justify-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
             >
-              Sign in
+              {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
         </form>
       </div>
     </div>
   );
-} 
+}

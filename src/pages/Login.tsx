@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { authService } from '@/services/authService';
+import { useAuth } from '@/contexts/AuthContext';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -23,6 +24,14 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Redirect if already logged in
+  React.useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -35,6 +44,7 @@ export default function Login() {
   const handleLogin = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
+      // Data is already validated by zod schema, so we can safely cast it
       await authService.signIn(data);
       toast({
         title: 'Welcome back!',
