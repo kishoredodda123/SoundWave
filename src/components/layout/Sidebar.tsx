@@ -65,12 +65,6 @@ const Sidebar = () => {
                   Albums
                 </Link>
               </li>
-              <li>
-                <Link to="/download" className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors" onClick={closeMobileMenu}>
-                  <PlusCircle className="h-5 w-5 mr-3" />
-                  Download App
-                </Link>
-              </li>
             </ul>
           </nav>
 

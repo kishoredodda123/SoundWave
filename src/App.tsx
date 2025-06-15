@@ -15,7 +15,6 @@ import AlbumDetail from '@/pages/AlbumDetail';
 import Admin from '@/pages/Admin';
 import AdminLogin from '@/pages/AdminLogin';
 import NotFound from '@/pages/NotFound';
-import Download from '@/pages/Download';
 import './App.css';
 
 const queryClient = new QueryClient();
@@ -37,7 +36,6 @@ function App() {
                   <Route path="/albums" element={<Albums />} />
                   <Route path="/albums/:albumId" element={<AlbumDetail />} />
                   <Route path="/admin-login" element={<AdminLogin />} />
-                  <Route path="/download" element={<Download />} />
                   <Route
                     path="/admin"
                     element={
