@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom';
 import { Home, Search, PlusCircle, Heart, Music, Album, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import UserProfile from './UserProfile';
 
 const Sidebar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -38,14 +39,15 @@ const Sidebar = () => {
         transform transition-transform duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         border-r border-gray-800 md:border-r-0
+        flex flex-col
       `}>
-        <div className="p-6 h-full px-0 py-0 mx-[20px] my-[20px]">
+        <div className="p-6 h-full px-0 py-0 mx-[20px] my-[20px] flex flex-col">
           <div className="flex items-center mb-8">
             <Music className="h-8 w-8 text-music-primary mr-2" />
             <h1 className="text-2xl font-bold text-white">SoundWave</h1>
           </div>
           
-          <nav>
+          <nav className="flex-1">
             <ul className="space-y-4">
               <li>
                 <Link to="/" className="flex items-center text-sm font-medium text-white hover:text-music-primary transition-colors" onClick={closeMobileMenu}>
@@ -66,17 +68,22 @@ const Sidebar = () => {
                 </Link>
               </li>
             </ul>
+
+            <div className="mt-8 pt-8 border-t border-gray-800">
+              <Link to="/create-playlist" className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors mb-4" onClick={closeMobileMenu}>
+                <PlusCircle className="h-5 w-5 mr-3" />
+                Create Playlist
+              </Link>
+              <Link to="/liked-songs" className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors" onClick={closeMobileMenu}>
+                <Heart className="h-5 w-5 mr-3" />
+                Liked Songs
+              </Link>
+            </div>
           </nav>
 
-          <div className="mt-8 pt-8 border-t border-gray-800">
-            <Link to="/create-playlist" className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors mb-4" onClick={closeMobileMenu}>
-              <PlusCircle className="h-5 w-5 mr-3" />
-              Create Playlist
-            </Link>
-            <Link to="/liked-songs" className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors" onClick={closeMobileMenu}>
-              <Heart className="h-5 w-5 mr-3" />
-              Liked Songs
-            </Link>
+          {/* User Profile Section */}
+          <div className="mt-auto pt-4 border-t border-gray-800">
+            <UserProfile />
           </div>
         </div>
       </aside>

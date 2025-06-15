@@ -1,3 +1,4 @@
+
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -14,6 +15,8 @@ import Albums from '@/pages/Albums';
 import AlbumDetail from '@/pages/AlbumDetail';
 import Admin from '@/pages/Admin';
 import AdminLogin from '@/pages/AdminLogin';
+import Login from '@/pages/Login';
+import SignUp from '@/pages/SignUp';
 import NotFound from '@/pages/NotFound';
 import './App.css';
 
@@ -35,6 +38,8 @@ function App() {
                   <Route path="/library" element={<Library />} />
                   <Route path="/albums" element={<Albums />} />
                   <Route path="/albums/:albumId" element={<AlbumDetail />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<SignUp />} />
                   <Route path="/admin-login" element={<AdminLogin />} />
                   <Route
                     path="/admin"
