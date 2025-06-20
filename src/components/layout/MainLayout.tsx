@@ -1,8 +1,12 @@
-
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import Sidebar from './Sidebar';
 import MusicPlayer from '../player/MusicPlayer';
 import { useMusicPlayerContext } from '@/contexts/MusicPlayerContext';
+import { useContentType } from '@/contexts/ContentTypeContext';
+import { cn } from '@/lib/utils';
+import { Menu } from 'lucide-react';
+import { ContentToggle } from '@/components/ui/content-toggle';
+import { useLocation } from 'react-router-dom';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -12,7 +16,10 @@ const MainLayout = ({
   children
 }: MainLayoutProps) => {
   const musicPlayer = useMusicPlayerContext();
+  const { contentType } = useContentType();
   const mainRef = useRef<HTMLElement>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
   
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -55,10 +62,28 @@ const MainLayout = ({
     };
   }, []);
   
+  // Close sidebar on route change (optional, for better UX)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [contentType]);
+  
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-gradient-to-br from-music-secondary via-music-darkBg to-music-secondary">
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+    <div className={cn(
+      "flex flex-col h-screen w-screen overflow-hidden bg-gradient-to-br",
+      contentType === 'music' 
+        ? "from-music-secondary via-music-darkBg to-music-secondary"
+        : "from-red-900 via-slate-900 to-red-900"
+    )}>
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Hamburger for mobile */}
+        <button
+          className="absolute top-4 left-4 z-40 md:hidden flex items-center justify-center w-10 h-10 rounded-full bg-card/80 backdrop-blur shadow-lg"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open sidebar"
+        >
+          <Menu className="w-6 h-6 text-white" />
+        </button>
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main 
           ref={mainRef}
           className="flex-1 overflow-y-auto pb-[280px] sm:pb-[240px] md:pb-32 pt-4 md:pt-6 px-4 md:px-6 focus:outline-none" 
@@ -67,10 +92,12 @@ const MainLayout = ({
           aria-label="Main content area"
         >
           <div className="max-w-[1800px] mx-auto w-full h-full relative">
+            {location.pathname === '/' && <ContentToggle />}
             {children}
           </div>
         </main>
       </div>
+      {contentType === 'music' && (
       <div className="fixed bottom-0 left-0 right-0 z-50 w-full">
         <MusicPlayer 
           currentTrack={musicPlayer.currentTrack} 
@@ -80,6 +107,7 @@ const MainLayout = ({
           onPrevious={musicPlayer.playPrevious} 
         />
       </div>
+      )}
     </div>
   );
 };

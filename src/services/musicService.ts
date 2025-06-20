@@ -1,4 +1,3 @@
-
 import { supabase, supabaseAdmin } from "@/integrations/supabase/client";
 
 // Types for music data
@@ -498,6 +497,20 @@ const updateTrack = async (trackId: string, updates: { title?: string; artist?: 
   }
 };
 
+export async function getAppDownloadLinks() {
+  const { data, error } = await supabase
+    .from('app_download_links')
+    .select('*')
+    .eq('is_active', true)
+    .order('platform');
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 export const musicService = {
   getAllTracks,
   getFeaturedPlaylists,
@@ -516,4 +529,5 @@ export const musicService = {
   addTrackToPlaylist,
   updateAlbum,
   updateTrack,
+  getAppDownloadLinks,
 };

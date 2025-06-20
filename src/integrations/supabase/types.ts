@@ -206,6 +206,66 @@ export type Database = {
         }
         Relationships: []
       }
+      movies: {
+        Row: {
+          id: string
+          title: string
+          year: string
+          poster_url: string
+          genre: string
+          rating: number
+          duration: string
+          language: string
+          synopsis: string
+          cast: string[]
+          director: string
+          stream_url: string
+          video_qualities: {
+            quality: string;
+            url: string;
+          }[]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          year: string
+          poster_url: string
+          genre: string
+          rating: number
+          duration: string
+          language: string
+          synopsis: string
+          cast: string[]
+          director: string
+          stream_url: string
+          video_qualities: {
+            quality: string;
+            url: string;
+          }[]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          year?: string
+          poster_url?: string
+          genre?: string
+          rating?: number
+          duration?: string
+          language?: string
+          synopsis?: string
+          cast?: string[]
+          director?: string
+          stream_url?: string
+          video_qualities?: {
+            quality: string;
+            url: string;
+          }[]
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

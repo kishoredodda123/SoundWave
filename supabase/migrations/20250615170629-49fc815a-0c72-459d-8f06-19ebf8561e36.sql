@@ -1,4 +1,3 @@
-
 -- Create a profiles table to store additional user information
 CREATE TABLE public.profiles (
   id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
@@ -50,3 +49,20 @@ $$;
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create movies table for storing movie details
+create table if not exists movies (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  year text,
+  poster_url text,
+  genre text,
+  rating float,
+  duration text,
+  language text,
+  synopsis text,
+  cast text[],
+  director text,
+  stream_url text,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
