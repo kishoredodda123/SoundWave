@@ -30,6 +30,8 @@ interface VideoPlayerProps {
   url: string;
   title?: string;
   onError?: (error: any) => void;
+  autoPlay?: boolean;
+  autoFullscreen?: boolean;
 }
 
 interface AudioTrack {
@@ -59,12 +61,14 @@ const aspectRatios = [
 
 const playbackSpeeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
-export function VideoPlayer({ url, title, onError }: VideoPlayerProps) {
+export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscreen = false }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
   const mouseIdleTimerRef = useRef<any>(null);
+  const touchStartRef = useRef<number>(0);
+  const [isMobile] = useState(() => window.innerWidth <= 768);
 
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -178,12 +182,34 @@ export function VideoPlayer({ url, title, onError }: VideoPlayerProps) {
     }
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen();
+      if (containerRef.current) {
+        if (containerRef.current.requestFullscreen) {
+          await containerRef.current.requestFullscreen();
+        } else if ((containerRef.current as any).webkitRequestFullscreen) {
+          await (containerRef.current as any).webkitRequestFullscreen();
+        }
+        // On mobile, lock orientation
+        if (window.innerWidth <= 768 && 'orientation' in screen) {
+          try {
+            await (screen.orientation as any).lock('landscape');
+          } catch (err) {
+            console.warn('Orientation lock failed:', err);
+          }
+        }
+      }
       setFullscreen(true);
     } else {
-      document.exitFullscreen();
+      await document.exitFullscreen();
+      // On mobile, unlock orientation
+      if (window.innerWidth <= 768 && 'orientation' in screen) {
+        try {
+          (screen.orientation as any).unlock();
+        } catch (err) {
+          console.warn('Orientation unlock failed:', err);
+        }
+      }
       setFullscreen(false);
     }
   };
@@ -453,6 +479,49 @@ export function VideoPlayer({ url, title, onError }: VideoPlayerProps) {
     };
   }, [duration]);
 
+  // Add function to handle screen orientation
+  const lockScreenOrientation = async () => {
+    try {
+      if ('orientation' in screen && isMobile) {
+        await (screen.orientation as any).lock('landscape');
+      }
+    } catch (err) {
+      console.warn('Screen orientation lock failed:', err);
+    }
+  };
+
+  // Add function to unlock screen orientation
+  const unlockScreenOrientation = () => {
+    try {
+      if ('orientation' in screen && isMobile) {
+        (screen.orientation as any).unlock();
+      }
+    } catch (err) {
+      console.warn('Screen orientation unlock failed:', err);
+    }
+  };
+
+  // On mobile, always show controls
+  useEffect(() => {
+    if (isMobile) setShowControls(true);
+  }, [isMobile]);
+
+  // On mobile, always show controls on touch
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = e.timeStamp;
+    if (isMobile) setShowControls(true);
+    else setShowControls(true);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isMobile) {
+      const touchDuration = e.timeStamp - touchStartRef.current;
+      if (touchDuration < 200) { // Short tap
+        setShowControls(!showControls);
+      }
+    }
+  };
+
   // Initialize video.js player
   useEffect(() => {
     if (!playerRef.current && videoRef.current) {
@@ -460,23 +529,58 @@ export function VideoPlayer({ url, title, onError }: VideoPlayerProps) {
 
       const player = videojs(videoElement, {
         controls: false,
-        autoplay: false,
+        autoplay: autoPlay,
         preload: 'auto',
         fluid: true,
+        playsinline: true,
+        muted: isMobile, // Mute by default on mobile to allow autoplay
         sources: [{
           src: url,
           type: 'video/mp4'
         }],
         html5: {
-          vhs: { overrideNative: true },
-          nativeAudioTracks: false,
-          nativeVideoTracks: false,
-          nativeTextTracks: false
+          vhs: { overrideNative: !isMobile }, // Use native player on mobile
+          nativeAudioTracks: isMobile,
+          nativeVideoTracks: isMobile,
+          nativeTextTracks: isMobile
         }
       });
 
       player.ready(() => {
-      player.src({ src: url, type: 'video/mp4' });
+        player.src({ src: url, type: 'video/mp4' });
+        
+        // Handle autoplay
+        if (autoPlay) {
+          const playPromise = player.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.warn('Autoplay failed:', error);
+              // If autoplay fails, show play button and unmute
+              setPlaying(false);
+              player.muted(false);
+            });
+          }
+        }
+
+        // Lock screen orientation when video starts playing
+        player.on('play', () => {
+          setPlaying(true);
+          if (isMobile) {
+            lockScreenOrientation();
+            // Try to unmute if video is muted
+            if (player.muted()) {
+              player.muted(false);
+            }
+          }
+        });
+        
+        // Unlock screen orientation when video ends or pauses
+        player.on('pause ended', () => {
+          setPlaying(false);
+          if (isMobile) {
+            unlockScreenOrientation();
+          }
+        });
       });
 
       player.on('loadedmetadata', () => {
@@ -527,7 +631,7 @@ export function VideoPlayer({ url, title, onError }: VideoPlayerProps) {
       player.on('waiting', () => setBuffering(true));
       player.on('canplay', () => setBuffering(false));
       player.on('error', (e) => {
-        setError(e);
+        console.error('Video player error:', e);
         if (onError) onError(e);
       });
 
@@ -536,11 +640,12 @@ export function VideoPlayer({ url, title, onError }: VideoPlayerProps) {
 
     return () => {
       if (playerRef.current) {
+        unlockScreenOrientation();
         playerRef.current.dispose();
         playerRef.current = null;
       }
     };
-  }, [url, onError, seeking]);
+  }, [url, onError, seeking, autoPlay, isMobile]);
 
   // Add CSS variables for aspect ratio control
   useEffect(() => {
@@ -669,6 +774,29 @@ export function VideoPlayer({ url, title, onError }: VideoPlayerProps) {
     }
   };
 
+  // Request fullscreen and lock orientation on mobile if autoFullscreen is true
+  useEffect(() => {
+    if (isMobile && autoFullscreen && containerRef.current) {
+      const requestFullscreen = async () => {
+        try {
+          // Request fullscreen
+          if (containerRef.current.requestFullscreen) {
+            await containerRef.current.requestFullscreen();
+          } else if ((containerRef.current as any).webkitRequestFullscreen) {
+            await (containerRef.current as any).webkitRequestFullscreen();
+          }
+          // Lock orientation
+          if ('orientation' in screen) {
+            await (screen.orientation as any).lock('landscape');
+          }
+        } catch (err) {
+          console.warn('Fullscreen/orientation lock failed:', err);
+        }
+      };
+      requestFullscreen();
+    }
+  }, [isMobile, autoFullscreen]);
+
   return (
     <div
       ref={containerRef}
@@ -677,94 +805,89 @@ export function VideoPlayer({ url, title, onError }: VideoPlayerProps) {
         'group/video touch-none select-none overflow-hidden',
         'w-full h-full',
         'max-w-full',
-        'md:rounded-xl',
-        'md:my-4',
-        'md:shadow-lg',
-        'md:max-w-4xl',
-        'md:mx-auto',
-        'md:h-[60vh]',
-        'sm:h-[40vh]',
-        'h-[30vh]', // mobile height
-        'min-h-[180px]',
         'flex flex-col justify-center items-center'
       )}
       onMouseMove={handleContainerMouseMove}
       onMouseLeave={handleContainerMouseLeave}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       style={getWrapperStyle()}
     >
       <div 
         className={cn(
           'absolute inset-0 flex items-center justify-center',
           'w-full h-full',
-          'md:static',
-          'md:rounded-xl',
           'overflow-hidden'
         )}
         style={{ ...getAspectBoxStyle(), maxWidth: '100vw', maxHeight: '100vh' }}
       >
-          <video
-            ref={videoRef}
-            className={cn(
-              'video-js vjs-default-skin',
-              'transition-all duration-300 ease-in-out',
-              'w-full h-full',
-              'object-contain',
-              'rounded-none',
-              'md:rounded-xl',
-              'bg-black',
-              'max-h-full',
-              'max-w-full'
-            )}
-            style={{ ...getVideoStyle(), maxWidth: '100vw', maxHeight: '100vh' }}
-            playsInline
-          >
-            <source src={url} type="video/mp4" />
-          </video>
+        <video
+          ref={videoRef}
+          className={cn(
+            'video-js vjs-default-skin',
+            'transition-all duration-300 ease-in-out',
+            'w-full h-full',
+            'object-contain',
+            'bg-black',
+            'max-h-full',
+            'max-w-full'
+          )}
+          style={{ ...getVideoStyle(), maxWidth: '100vw', maxHeight: '100vh' }}
+          playsInline
+          webkit-playsinline="true"
+          x5-playsinline="true"
+          x5-video-player-type="h5"
+          x5-video-player-fullscreen="true"
+          x5-video-orientation="landscape"
+        >
+          <source src={url} type="video/mp4" />
+        </video>
       </div>
 
-      {/* Overlay Controls */}
+      {/* Overlay Controls - Always visible on mobile */}
       <div
         className={cn(
           'absolute inset-0 flex flex-col items-center justify-center',
           'transition-opacity duration-200',
-          !showControls && 'opacity-0 pointer-events-none'
+          'touch-auto',
+          isMobile ? '' : (!showControls && 'opacity-0 pointer-events-none')
         )}
       >
-        {/* Center Play/Pause Button */}
+        {/* Center Play/Pause Button - Made larger for mobile */}
         <button
           onClick={handlePlayPause}
           className={cn(
             'absolute z-20',
-            'bg-black/60 rounded-full p-6',
+            'bg-black/60 rounded-full',
+            'p-4 md:p-6', // Smaller padding on mobile
             'hover:bg-black/80 transition-all duration-200',
             'transform translate-y-0',
             !showControls && 'opacity-0 pointer-events-none'
           )}
           aria-label={playing ? 'Pause' : 'Play'}
-      >
+        >
           {playing ? (
-            <Pause className="w-12 h-12 text-white" />
+            <Pause className="w-8 h-8 md:w-12 md:h-12 text-white" />
           ) : (
-            <Play className="w-12 h-12 text-white" />
+            <Play className="w-8 h-8 md:w-12 md:h-12 text-white" />
           )}
         </button>
 
-        {/* Bottom Controls */}
+        {/* Bottom Controls - Increased touch targets for mobile */}
         <div 
           className={cn(
             'absolute bottom-0 left-0 right-0',
             'bg-gradient-to-t from-black/90 via-black/60 to-transparent',
             'transition-opacity duration-200',
             !showControls && 'opacity-0 pointer-events-none',
-            'px-1 py-1', // mobile padding
-            'md:px-4 md:py-0' // desktop padding
+            'px-2 py-2 md:px-4 md:py-1' // Increased padding for mobile
           )}
         >
-          {/* Progress Bar */}
-          <div className="px-1 md:px-4 py-0">
+          {/* Progress Bar - Made taller for mobile */}
+          <div className="px-2 md:px-4 py-1">
             <div
               ref={progressBarRef}
-              className="relative w-full h-2 md:h-1 bg-white/30 cursor-pointer group/progress rounded-full"
+              className="relative w-full h-3 md:h-2 bg-white/30 cursor-pointer group/progress rounded-full"
               onClick={handleProgressClick}
             >
               <div
@@ -782,8 +905,8 @@ export function VideoPlayer({ url, title, onError }: VideoPlayerProps) {
           </div>
         </div>
 
-          {/* Control Bar */}
-          <div className="px-1 md:px-4 py-2 flex flex-col md:flex-row items-center gap-2 md:gap-4">
+          {/* Control Bar - Increased spacing for mobile */}
+          <div className="px-2 md:px-4 py-3 md:py-2 flex flex-col md:flex-row items-center gap-3 md:gap-4">
             {/* Left Controls */}
             <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
               <button

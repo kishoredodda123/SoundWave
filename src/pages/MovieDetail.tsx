@@ -31,6 +31,7 @@ export default function MovieDetail() {
   const [error, setError] = useState<string | null>(null);
   const [selectedQuality, setSelectedQuality] = useState<string | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const fetchMovie = async () => {
@@ -125,6 +126,10 @@ export default function MovieDetail() {
     fetchMovie();
   }, [movieId]);
 
+  useEffect(() => {
+    setIsMobile(window.innerWidth <= 768);
+  }, []);
+
   const handleVideoError = (error: any) => {
     console.error('Video playback error:', error);
   };
@@ -138,6 +143,10 @@ export default function MovieDetail() {
   const handleQualitySelect = (quality: string) => {
     setSelectedQuality(quality);
     setShowPlayer(true);
+  };
+
+  const handleClosePlayer = () => {
+    setShowPlayer(false);
   };
 
   if (isLoading) {
@@ -200,7 +209,7 @@ export default function MovieDetail() {
                 className="w-full h-auto"
               />
             </div>
-            <Dialog open={showPlayer} onOpenChange={setShowPlayer}>
+            <Dialog open={showPlayer} onOpenChange={handleClosePlayer}>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
@@ -227,7 +236,7 @@ export default function MovieDetail() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <DialogContent 
-                className="max-w-6xl w-[98vw] sm:w-[95vw] h-[60vh] sm:h-[90vh] p-0"
+                className="max-w-none w-screen h-screen p-0"
                 aria-describedby="video-player-desc"
               >
                 <div id="video-player-desc" className="sr-only">
@@ -235,7 +244,10 @@ export default function MovieDetail() {
                 </div>
                 <VideoPlayer 
                   url={getSelectedQualityUrl()} 
-                  onError={handleVideoError} 
+                  onError={handleVideoError}
+                  title={movie.title}
+                  autoPlay
+                  autoFullscreen={isMobile}
                 />
               </DialogContent>
             </Dialog>
