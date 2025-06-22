@@ -20,6 +20,8 @@ const MainLayout = ({
   const mainRef = useRef<HTMLElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const mainContentRef = useRef<HTMLDivElement>(null);
+  const scrollPositions = useRef<{ [key: string]: number }>({});
   
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -67,6 +69,27 @@ const MainLayout = ({
     setSidebarOpen(false);
   }, [contentType]);
   
+  // Save scroll position before location changes
+  useEffect(() => {
+    if (mainContentRef.current) {
+      scrollPositions.current[location.pathname] = mainContentRef.current.scrollTop;
+    }
+  }, [location.pathname]);
+
+  // Restore scroll position when component mounts or location changes
+  useEffect(() => {
+    const mainContent = mainContentRef.current;
+    if (mainContent) {
+      // Use requestAnimationFrame to ensure the DOM has updated
+      requestAnimationFrame(() => {
+        const savedPosition = scrollPositions.current[location.pathname];
+        if (savedPosition) {
+          mainContent.scrollTop = savedPosition;
+        }
+      });
+    }
+  }, [location.pathname]);
+  
   return (
     <div className={cn(
       "flex flex-col h-screen w-screen overflow-hidden bg-gradient-to-br",
@@ -85,11 +108,12 @@ const MainLayout = ({
         </button>
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main 
-          ref={mainRef}
+          ref={mainContentRef}
           className="flex-1 overflow-y-auto pb-[280px] sm:pb-[240px] md:pb-32 pt-4 md:pt-6 px-4 md:px-6 focus:outline-none" 
           tabIndex={0}
           role="main"
           aria-label="Main content area"
+          style={{ scrollBehavior: 'smooth' }}
         >
           <div className="max-w-[1800px] mx-auto w-full h-full relative">
             {location.pathname === '/' && <ContentToggle />}

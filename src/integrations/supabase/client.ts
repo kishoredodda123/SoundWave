@@ -12,18 +12,34 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !SUPABASE_ANON_KEY) {
   throw new Error('Missing Supabase environment variables');
 }
 
+// Create a single Supabase client instance
+const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    storage: {
+      getItem: (key) => {
+        const value = localStorage.getItem(key);
+        return Promise.resolve(value);
+      },
+      setItem: (key, value) => {
+        localStorage.setItem(key, value);
+        return Promise.resolve();
+      },
+      removeItem: (key) => {
+        localStorage.removeItem(key);
+        return Promise.resolve();
+      }
+    }
+  }
+});
+
 // Create an admin client that bypasses RLS
-export const supabaseAdmin = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+const supabaseAdmin = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
   }
 });
 
-// Create a regular client for non-admin operations
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true
-  }
-});
+export { supabase, supabaseAdmin };

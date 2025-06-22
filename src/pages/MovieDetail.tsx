@@ -7,7 +7,7 @@ import { Play, Star, Clock, Calendar, User2, ArrowLeft, Check } from 'lucide-rea
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { VideoPlayer } from '@/components/player/VideoPlayer';
-import { getMovieById, type Movie } from '@/services/movieService';
+import { getMovieById, getMovies, type Movie } from '@/services/movieService';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const MOVIES_CACHE_KEY = 'soundwave_movies_cache';
+const CURRENT_MOVIE_KEY = 'soundwave_current_movie';
+
 export default function MovieDetail() {
   const { movieId } = useParams();
   const navigate = useNavigate();
@@ -27,16 +30,32 @@ export default function MovieDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedQuality, setSelectedQuality] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
 
   useEffect(() => {
     const fetchMovie = async () => {
-      if (!movieId) return;
+      if (!movieId) {
+        setError('Invalid movie ID');
+        setIsLoading(false);
+        return;
+      }
+
       try {
+        // First try to load from current movie cache
+        const cachedCurrentMovie = localStorage.getItem(CURRENT_MOVIE_KEY);
+        if (cachedCurrentMovie) {
+          const parsed = JSON.parse(cachedCurrentMovie);
+          if (parsed.id === movieId) {
+            setMovie(parsed);
+            setSelectedQuality(parsed.video_qualities?.[0]?.quality || 'Default');
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Try to get from API
         const data = await getMovieById(movieId);
         if (data) {
-          // Ensure video_qualities exists
           const movieWithQualities = {
             ...data,
             video_qualities: data.video_qualities || [{
@@ -45,9 +64,56 @@ export default function MovieDetail() {
             }]
           };
           setMovie(movieWithQualities);
-          // Set default quality
           setSelectedQuality(movieWithQualities.video_qualities[0].quality);
+          // Cache the current movie
+          localStorage.setItem(CURRENT_MOVIE_KEY, JSON.stringify(movieWithQualities));
+          setIsLoading(false);
+          return;
         }
+
+        // If API fails, try to get from movies list cache
+        const cachedMovies = localStorage.getItem(MOVIES_CACHE_KEY);
+        if (cachedMovies) {
+          const movies = JSON.parse(cachedMovies);
+          const cachedMovie = movies.find((m: Movie) => m.id === movieId);
+          if (cachedMovie) {
+            const movieWithQualities = {
+              ...cachedMovie,
+              video_qualities: cachedMovie.video_qualities || [{
+                quality: 'Default',
+                url: cachedMovie.stream_url
+              }]
+            };
+            setMovie(movieWithQualities);
+            setSelectedQuality(movieWithQualities.video_qualities[0].quality);
+            // Cache the current movie
+            localStorage.setItem(CURRENT_MOVIE_KEY, JSON.stringify(movieWithQualities));
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // If still not found, try to fetch all movies
+        const allMovies = await getMovies();
+        const foundMovie = allMovies.find(m => m.id === movieId);
+        if (foundMovie) {
+          const movieWithQualities = {
+            ...foundMovie,
+            video_qualities: foundMovie.video_qualities || [{
+              quality: 'Default',
+              url: foundMovie.stream_url
+            }]
+          };
+          setMovie(movieWithQualities);
+          setSelectedQuality(movieWithQualities.video_qualities[0].quality);
+          // Cache the current movie and all movies
+          localStorage.setItem(CURRENT_MOVIE_KEY, JSON.stringify(movieWithQualities));
+          localStorage.setItem(MOVIES_CACHE_KEY, JSON.stringify(allMovies));
+          setIsLoading(false);
+          return;
+        }
+
+        setError('Movie not found');
       } catch (err) {
         console.error('Error fetching movie:', err);
         setError('Failed to load movie details');
@@ -61,7 +127,6 @@ export default function MovieDetail() {
 
   const handleVideoError = (error: any) => {
     console.error('Video playback error:', error);
-    setError('Failed to play video. Please try again later.');
   };
 
   const getSelectedQualityUrl = () => {
@@ -95,7 +160,18 @@ export default function MovieDetail() {
     return (
       <MainLayout>
         <div className="container mx-auto px-4 py-8">
-          <div className="text-center text-red-500">{error || 'Movie not found'}</div>
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <h1 className="text-2xl font-bold text-red-500">Movie not found</h1>
+            <p className="text-gray-400">The movie you're looking for might have been removed or is temporarily unavailable.</p>
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/')}
+              className="mt-4"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Movies
+            </Button>
+          </div>
         </div>
       </MainLayout>
     );

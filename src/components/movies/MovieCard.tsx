@@ -14,7 +14,7 @@ export function MovieCard(props: MovieCardProps) {
   const { id, title, year, poster_url, genre, rating, className } = props;
   return (
     <div
-      onClick={() => navigate(`/movie/${id}`, { state: props })}
+      onClick={() => navigate(`/movies/${id}`, { state: props })}
       style={{ cursor: 'pointer' }}
     >
       <Card className={cn(

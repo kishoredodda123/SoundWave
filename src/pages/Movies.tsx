@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import MainLayout from '@/components/layout/MainLayout';
 import { MovieCard } from '@/components/movies/MovieCard';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -11,10 +11,25 @@ const getFeaturedMovies = (movies: Movie[]) => {
     .slice(0, 4);
 };
 
+const SCROLL_POSITION_KEY = 'movies_scroll_position';
+
 export default function Movies() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Save scroll position on navigation away
+  useEffect(() => {
+    const saveScroll = () => {
+      sessionStorage.setItem(SCROLL_POSITION_KEY, window.scrollY.toString());
+    };
+    window.addEventListener('beforeunload', saveScroll);
+    return () => {
+      saveScroll();
+      window.removeEventListener('beforeunload', saveScroll);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchMovies = async () => {
@@ -64,7 +79,7 @@ export default function Movies() {
 
   return (
     <MainLayout>
-      <div className="container mx-auto px-2 sm:px-4 py-6 sm:py-8 space-y-8 sm:space-y-12">
+      <div ref={containerRef} className="container mx-auto px-2 sm:px-4 py-6 sm:py-8 space-y-8 sm:space-y-12">
         {/* Hero Section */}
         <section className="relative h-[220px] sm:h-[350px] md:h-[500px] rounded-2xl sm:rounded-3xl overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent z-10" />
