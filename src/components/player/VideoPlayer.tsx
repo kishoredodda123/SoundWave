@@ -853,25 +853,43 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
           isMobile ? '' : (!showControls && 'opacity-0 pointer-events-none')
         )}
       >
-        {/* Center Play/Pause Button - Made larger for mobile */}
-        <button
-          onClick={handlePlayPause}
-          className={cn(
-            'absolute z-20',
-            'bg-black/60 rounded-full',
-            'p-4 md:p-6', // Smaller padding on mobile
-            'hover:bg-black/80 transition-all duration-200',
-            'transform translate-y-0',
-            !showControls && 'opacity-0 pointer-events-none'
-          )}
-          aria-label={playing ? 'Pause' : 'Play'}
-        >
-          {playing ? (
-            <Pause className="w-8 h-8 md:w-12 md:h-12 text-white" />
-          ) : (
-            <Play className="w-8 h-8 md:w-12 md:h-12 text-white" />
-          )}
-        </button>
+        {/* Center Play/Pause Button with Skip Buttons */}
+        <div className="absolute z-20 flex items-center gap-6">
+          <button
+            onClick={handleSkipBackward}
+            className="bg-black/60 rounded-full p-4 hover:bg-black/80 transition-all duration-200 flex items-center justify-center"
+            aria-label="Skip Back 10 seconds"
+          >
+            <SkipBack className="w-8 h-8 text-white" />
+            <span className="sr-only">Skip Back 10 seconds</span>
+          </button>
+          <button
+            onClick={handlePlayPause}
+            className={cn(
+              'bg-black/60 rounded-full',
+              'p-4 md:p-6',
+              'hover:bg-black/80 transition-all duration-200',
+              'flex items-center justify-center',
+              'transform translate-y-0',
+              !showControls && 'opacity-0 pointer-events-none'
+            )}
+            aria-label={playing ? 'Pause' : 'Play'}
+          >
+            {playing ? (
+              <Pause className="w-8 h-8 md:w-12 md:h-12 text-white" />
+            ) : (
+              <Play className="w-8 h-8 md:w-12 md:h-12 text-white" />
+            )}
+          </button>
+          <button
+            onClick={handleSkipForward}
+            className="bg-black/60 rounded-full p-4 hover:bg-black/80 transition-all duration-200 flex items-center justify-center"
+            aria-label="Skip Forward 10 seconds"
+          >
+            <SkipForward className="w-8 h-8 text-white" />
+            <span className="sr-only">Skip Forward 10 seconds</span>
+          </button>
+        </div>
 
         {/* Bottom Controls - Increased touch targets for mobile */}
         <div 
@@ -909,17 +927,6 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
           <div className="px-2 md:px-4 py-3 md:py-2 flex flex-col md:flex-row items-center gap-3 md:gap-4">
             {/* Left Controls */}
             <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
-              <button
-                onClick={handlePlayPause}
-                className="p-2 hover:bg-white/10 rounded-full transition"
-              >
-                {playing ? (
-                  <Pause className="w-6 h-6 text-white" />
-                ) : (
-                  <Play className="w-6 h-6 text-white" />
-                )}
-              </button>
-
               <div className="flex items-center gap-2 group/volume">
                 <button
                   onClick={handleMuteToggle}
