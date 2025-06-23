@@ -854,7 +854,12 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
         )}
       >
         {/* Center Play/Pause Button with Skip Buttons */}
-        <div className="absolute z-20 flex items-center gap-6">
+        <div
+          className={cn(
+            "absolute z-20 flex items-center gap-6",
+            !isMobile && !showControls && "opacity-0 pointer-events-none"
+          )}
+        >
           <button
             onClick={handleSkipBackward}
             className="bg-black/60 rounded-full p-4 hover:bg-black/80 transition-all duration-200 flex items-center justify-center"
@@ -870,8 +875,7 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
               'p-4 md:p-6',
               'hover:bg-black/80 transition-all duration-200',
               'flex items-center justify-center',
-              'transform translate-y-0',
-              !showControls && 'opacity-0 pointer-events-none'
+              'transform translate-y-0'
             )}
             aria-label={playing ? 'Pause' : 'Play'}
           >
