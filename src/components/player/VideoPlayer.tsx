@@ -850,14 +850,14 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
           'absolute inset-0 flex flex-col items-center justify-center',
           'transition-opacity duration-200',
           'touch-auto',
-          isMobile ? '' : (!showControls && 'opacity-0 pointer-events-none')
+          !showControls && 'opacity-0 pointer-events-none'
         )}
       >
         {/* Center Play/Pause Button with Skip Buttons */}
         <div
           className={cn(
             "absolute z-20 flex items-center gap-6",
-            !isMobile && !showControls && "opacity-0 pointer-events-none"
+            !showControls && "opacity-0 pointer-events-none"
           )}
         >
           <button
