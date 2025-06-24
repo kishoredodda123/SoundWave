@@ -236,7 +236,7 @@ export default function MovieDetail() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <DialogContent 
-                className="max-w-none w-screen h-screen p-0"
+                className="p-0 sm:max-w-[90vw] sm:max-h-[100vh] sm:w-[1080px] sm:h-auto sm:rounded-xl w-screen h-screen rounded-none"
                 aria-describedby="video-player-desc"
               >
                 <div id="video-player-desc" className="sr-only">

@@ -20,16 +20,14 @@ import {
   CheckCircle2,
   Film,
   SlidersHorizontal,
-  Expand,
-  Shrink,
+  Monitor,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import React from 'react';
 
 interface VideoPlayerProps {
   url: string;
-  title?: string;
   onError?: (error: any) => void;
+  title?: string;
   autoPlay?: boolean;
   autoFullscreen?: boolean;
 }
@@ -46,32 +44,16 @@ interface TextTrack {
   label: string;
 }
 
-interface VideoQuality {
-  label: string;
-  value: string;
-}
+const playbackSpeeds = [0.5, 1, 1.25, 1.5, 2];
 
-const aspectRatios = [
-  { label: 'Auto', value: 'auto' },
-  { label: '16:9', value: '16:9' },
-  { label: '4:3', value: '4:3' },
-  { label: 'Fill', value: 'fill' },
-  { label: 'Zoom', value: 'zoom' },
-];
-
-const playbackSpeeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-
-export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscreen = false }: VideoPlayerProps) {
+export function VideoPlayer({ url, onError, title, autoPlay, autoFullscreen }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
-  const mouseIdleTimerRef = useRef<any>(null);
-  const touchStartRef = useRef<number>(0);
-  const [isMobile] = useState(() => window.innerWidth <= 768);
-
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [volumeBoost, setVolumeBoost] = useState(false);
   const [muted, setMuted] = useState(false);
   const [played, setPlayed] = useState(0);
   const [seeking, setSeeking] = useState(false);
@@ -86,339 +68,13 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
   const [showControls, setShowControls] = useState(true);
   const [mouseIdle, setMouseIdle] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showAspectRatio, setShowAspectRatio] = useState(false);
-  const [currentAspectRatio, setCurrentAspectRatio] = useState('auto');
+  const [showTheater, setShowTheater] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
-  const [isPiP, setIsPiP] = useState(false);
-  const [volumeBoost, setVolumeBoost] = useState(false);
-  const [internalVolume, setInternalVolume] = useState(1);
-  const [displayVolume, setDisplayVolume] = useState(1);
-
-  const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    if (h > 0) {
-      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    }
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const handlePlayPause = () => {
-    if (playerRef.current) {
-      if (playing) {
-        playerRef.current.pause();
-      } else {
-        playerRef.current.play();
-      }
-      setPlaying(!playing);
-      setShowControls(true);
-    }
-  };
-
-  const handleSkipBackward = () => {
-    if (playerRef.current) {
-      const newTime = Math.max(0, playerRef.current.currentTime() - 10);
-      playerRef.current.currentTime(newTime);
-      setPlayed(newTime / duration);
-    }
-  };
-
-  const handleSkipForward = () => {
-    if (playerRef.current) {
-      const newTime = Math.min(duration, playerRef.current.currentTime() + 10);
-      playerRef.current.currentTime(newTime);
-      setPlayed(newTime / duration);
-    }
-  };
-
-  const applyVolumeBoost = (baseVolume: number, boost: boolean) => {
-    if (!videoRef.current) return;
-
-    let boostedVolume;
-    if (boost) {
-      // Proportional boost: more boost at higher volumes
-      if (baseVolume <= 0.2) { // Low volume (0-20%)
-        boostedVolume = baseVolume * 2; // Double the volume
-      } else if (baseVolume <= 0.5) { // Medium volume (20-50%)
-        boostedVolume = baseVolume * 2.5; // 2.5x boost
-      } else { // High volume (50-100%)
-        boostedVolume = baseVolume * 5.5; // Increased from 3x to 5.5x for stronger boost
-      }
-    } else {
-      boostedVolume = baseVolume;
-    }
-
-    // Set the actual volume
-    videoRef.current.volume = Math.min(boostedVolume, 1);
-    // Store the internal volume value for boost calculations
-    setInternalVolume(baseVolume);
-    // Update the display volume for the slider
-    setDisplayVolume(baseVolume);
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = parseFloat(e.target.value);
-    applyVolumeBoost(newVolume, volumeBoost);
-    setMuted(newVolume === 0);
-  };
-
-  // Effect to handle volume boost toggle
-  useEffect(() => {
-    applyVolumeBoost(internalVolume, volumeBoost);
-  }, [volumeBoost]);
-
-  // Handle mute toggle
-  const handleMuteToggle = () => {
-    if (videoRef.current) {
-      const newMuted = !muted;
-      videoRef.current.muted = newMuted;
-      setMuted(newMuted);
-      if (!newMuted) {
-        // Restore volume when unmuting
-        applyVolumeBoost(internalVolume, volumeBoost);
-      }
-    }
-  };
-
-  const toggleFullscreen = async () => {
-    if (!document.fullscreenElement) {
-      if (containerRef.current) {
-        if (containerRef.current.requestFullscreen) {
-          await containerRef.current.requestFullscreen();
-        } else if ((containerRef.current as any).webkitRequestFullscreen) {
-          await (containerRef.current as any).webkitRequestFullscreen();
-        }
-        // On mobile, lock orientation
-        if (window.innerWidth <= 768 && 'orientation' in screen) {
-          try {
-            await (screen.orientation as any).lock('landscape');
-          } catch (err) {
-            console.warn('Orientation lock failed:', err);
-          }
-        }
-      }
-      setFullscreen(true);
-    } else {
-      await document.exitFullscreen();
-      // On mobile, unlock orientation
-      if (window.innerWidth <= 768 && 'orientation' in screen) {
-        try {
-          (screen.orientation as any).unlock();
-        } catch (err) {
-          console.warn('Orientation unlock failed:', err);
-        }
-      }
-      setFullscreen(false);
-    }
-  };
-
-  const togglePiP = async () => {
-    try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-        setIsPiP(false);
-      } else if (document.pictureInPictureEnabled && videoRef.current) {
-        const video = videoRef.current;
-        // Set a smaller size before entering PiP
-        const originalWidth = video.videoWidth;
-        const originalHeight = video.videoHeight;
-        video.width = Math.min(320, originalWidth);
-        video.height = (video.width * originalHeight) / originalWidth;
-        await video.requestPictureInPicture();
-        setIsPiP(true);
-        // Reset size after entering PiP
-        video.width = originalWidth;
-        video.height = originalHeight;
-      }
-    } catch (err) {
-      console.error('PiP failed:', err);
-    }
-  };
-
-  const handlePlaybackRateChange = (rate: number) => {
-    if (playerRef.current) {
-      playerRef.current.playbackRate(rate);
-      setPlaybackRate(rate);
-      setShowSettings(false);
-    }
-  };
-
-  const handleTextTrackChange = (trackId: string) => {
-    if (playerRef.current) {
-      const tracks = playerRef.current.textTracks();
-      if (tracks) {
-        Array.from(tracks).forEach((track: any) => {
-          track.mode = track.language === trackId ? 'showing' : 'hidden';
-        });
-        setCurrentTextTrack(trackId);
-      }
-    }
-  };
-
-  const handleAudioTrackChange = (trackId: string) => {
-    if (playerRef.current) {
-      const tracks = playerRef.current.audioTracks();
-      if (tracks) {
-        Object.keys(tracks)
-          .filter(key => !isNaN(Number(key)))
-          .forEach(key => {
-            const track = tracks[key as any];
-            track.enabled = track.id === trackId;
-          });
-        setCurrentAudioTrack(trackId);
-      }
-    }
-  };
-
-  const handleAspectRatioChange = (ratio: string) => {
-    if (!videoRef.current || !containerRef.current) return;
-
-    setCurrentAspectRatio(ratio);
-    const video = videoRef.current;
-    const container = containerRef.current;
-
-    // Reset all styles first
-    container.style.cssText = '';
-    video.style.cssText = '';
-
-    // Set base container styles
-    container.style.display = 'flex';
-    container.style.alignItems = 'center';
-    container.style.justifyContent = 'center';
-    container.style.width = '100%';
-    container.style.height = '100%';
-    container.style.position = 'relative';
-
-    switch (ratio) {
-      case 'auto':
-        video.style.width = '100%';
-        video.style.height = '100%';
-        video.style.objectFit = 'contain';
-        break;
-      case '16:9':
-        container.style.padding = '10% 0';
-        video.style.width = '100%';
-        video.style.height = '100%';
-        video.style.objectFit = 'contain';
-        break;
-      case '4:3':
-        // Centered 4:3 box
-        container.style.display = 'flex';
-        container.style.alignItems = 'center';
-        container.style.justifyContent = 'center';
-        video.style.width = '100%';
-        video.style.height = 'auto';
-        video.style.maxWidth = '75vh';
-        video.style.maxHeight = '75vw';
-        video.style.aspectRatio = '4 / 3';
-        video.style.objectFit = 'contain';
-        break;
-      case 'fill':
-        // Always stretch to fill container
-        video.style.width = '100%';
-        video.style.height = '100%';
-        video.style.objectFit = 'cover';
-        break;
-      case 'zoom':
-        video.style.width = '100vw';
-        video.style.height = '100vh';
-        video.style.objectFit = 'cover';
-        video.style.position = 'absolute';
-        video.style.top = '50%';
-        video.style.left = '50%';
-        video.style.transform = 'translate(-50%, -50%)';
-        break;
-    }
-
-    setShowAspectRatio(false);
-  };
-
-  // Add resize observer to handle aspect ratio on container size changes
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const observer = new ResizeObserver(() => {
-      // Re-apply current aspect ratio when container size changes
-      handleAspectRatioChange(currentAspectRatio);
-    });
-
-    observer.observe(containerRef.current);
-
-    return () => observer.disconnect();
-  }, [currentAspectRatio]);
-
-  // Now we can use the useEffect hooks with the defined functions
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (showSettings) return;
-      
-      switch (e.key.toLowerCase()) {
-        case ' ':
-        case 'k':
-          e.preventDefault();
-          handlePlayPause();
-          break;
-        case 'arrowleft':
-        case 'j':
-          handleSkipBackward();
-          break;
-        case 'arrowright':
-        case 'l':
-          handleSkipForward();
-          break;
-        case 'f':
-          toggleFullscreen();
-          break;
-        case 'm':
-          handleMuteToggle();
-          break;
-        case 'p':
-          togglePiP();
-          break;
-        case 'c':
-          handleTextTrackChange(currentTextTrack ? '' : (textTracks[0]?.id || ''));
-          break;
-        case 'escape':
-          if (showSettings) setShowSettings(false);
-          break;
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-          e.preventDefault();
-          if (playerRef.current) {
-            const percent = parseInt(e.key) * 10;
-            const time = (duration * percent) / 100;
-            playerRef.current.currentTime(time);
-            setPlayed(percent / 100);
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [
-    handlePlayPause,
-    handleSkipBackward,
-    handleSkipForward,
-    toggleFullscreen,
-    handleMuteToggle,
-    togglePiP,
-    handleTextTrackChange,
-    currentTextTrack,
-    textTracks,
-    showSettings,
-    duration
-  ]);
+  const mouseIdleTimerRef = useRef<any>(null);
+  const [aspectRatio, setAspectRatio] = useState<'auto' | '16:9' | '4:3' | 'fill' | 'zoom'>('auto');
+  const [showAspectRatioMenu, setShowAspectRatioMenu] = useState(false);
+  const [showPiP, setShowPiP] = useState(false);
 
   // Mouse idle detection with smoother transitions
   useEffect(() => {
@@ -479,159 +135,153 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
     };
   }, [duration]);
 
-  // Add function to handle screen orientation
-  const lockScreenOrientation = async () => {
+  // Video.js initialization with captions support
+  // Function to handle mobile orientation
+  const handleMobileOrientation = async () => {
     try {
-      if ('orientation' in screen && isMobile) {
-        await (screen.orientation as any).lock('landscape');
+      // Check if running on mobile
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        // Request fullscreen first
+        const videoContainer = containerRef.current;
+        if (videoContainer) {
+          if (videoContainer.requestFullscreen) {
+            await videoContainer.requestFullscreen();
+          } else if ((videoContainer as any).webkitRequestFullscreen) {
+            await (videoContainer as any).webkitRequestFullscreen();
+          }
+        }
+        
+        // Then try to lock orientation to landscape
+        if ('orientation' in screen) {
+          const screenOrientation = (screen as any).orientation;
+          if (screenOrientation && typeof screenOrientation.lock === 'function') {
+            await screenOrientation.lock('landscape');
+          }
+        }
+        setFullscreen(true);
       }
     } catch (err) {
-      console.warn('Screen orientation lock failed:', err);
+      console.log('Orientation/Fullscreen lock failed:', err);
     }
   };
 
-  // Add function to unlock screen orientation
-  const unlockScreenOrientation = () => {
+  // Function to unlock orientation
+  const unlockOrientation = () => {
     try {
-      if ('orientation' in screen && isMobile) {
-        (screen.orientation as any).unlock();
+      if ('orientation' in screen) {
+        const screenOrientation = (screen as any).orientation;
+        if (screenOrientation && typeof screenOrientation.unlock === 'function') {
+          screenOrientation.unlock();
+        }
       }
     } catch (err) {
-      console.warn('Screen orientation unlock failed:', err);
+      console.log('Orientation unlock failed:', err);
     }
   };
 
-  // On mobile, always show controls
-  useEffect(() => {
-    if (isMobile) setShowControls(true);
-  }, [isMobile]);
-
-  // On mobile, always show controls on touch
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartRef.current = e.timeStamp;
-    if (isMobile) setShowControls(true);
-    else setShowControls(true);
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!isMobile) {
-      const touchDuration = e.timeStamp - touchStartRef.current;
-      if (touchDuration < 200) { // Short tap
-        setShowControls(!showControls);
-      }
-    }
-  };
-
-  // Initialize video.js player
   useEffect(() => {
     if (!playerRef.current && videoRef.current) {
       const videoElement = videoRef.current;
-
       const player = videojs(videoElement, {
         controls: false,
-        autoplay: autoPlay,
+        autoplay: true,
         preload: 'auto',
         fluid: true,
-        playsinline: true,
-        muted: isMobile, // Mute by default on mobile to allow autoplay
-        sources: [{
-          src: url,
-          type: 'video/mp4'
-        }],
+        playbackRates: playbackSpeeds,
         html5: {
-          vhs: { overrideNative: !isMobile }, // Use native player on mobile
-          nativeAudioTracks: isMobile,
-          nativeVideoTracks: isMobile,
-          nativeTextTracks: isMobile
-        }
+          vhs: { overrideNative: true },
+          nativeAudioTracks: true,
+          nativeVideoTracks: true,
+          nativeTextTracks: true,
+        },
+        controlBar: {
+          playbackRateMenuButton: false,
+        },
       });
 
-      player.ready(() => {
-        player.src({ src: url, type: 'video/mp4' });
-        
-        // Handle autoplay
-        if (autoPlay) {
-          const playPromise = player.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(error => {
-              console.warn('Autoplay failed:', error);
-              // If autoplay fails, show play button and unmute
-              setPlaying(false);
-              player.muted(false);
-            });
-          }
+      // Handle orientation and fullscreen when video starts playing
+      player.on('play', () => {
+        if (autoFullscreen) {
+          handleMobileOrientation();
         }
-
-        // Lock screen orientation when video starts playing
-        player.on('play', () => {
-          setPlaying(true);
-          if (isMobile) {
-            lockScreenOrientation();
-            // Try to unmute if video is muted
-            if (player.muted()) {
-              player.muted(false);
-            }
-          }
-        });
-        
-        // Unlock screen orientation when video ends or pauses
-        player.on('pause ended', () => {
-          setPlaying(false);
-          if (isMobile) {
-            unlockScreenOrientation();
-          }
-        });
       });
+      
+      // Handle orientation when video ends or is disposed
+      player.on('ended', unlockOrientation);
+      player.on('dispose', unlockOrientation);
+        
+      // Add custom CSS to hide video.js overlays
+      const style = document.createElement('style');
+      style.textContent = `
+        .vjs-text-track-display,
+        .vjs-playback-rate-value,
+        .vjs-playback-rate,
+        .vjs-control-text {
+          display: none !important;
+        }
+      `;
+      document.head.appendChild(style);
+
+      // Add sample captions (replace with your actual captions)
+      player.addRemoteTextTrack({
+        kind: 'captions',
+        srclang: 'en',
+        label: 'English',
+        src: 'path/to/captions.vtt', // Replace with actual captions file
+      }, false);
+
+      player.src({ src: url, type: 'video/mp4' });
 
       player.on('loadedmetadata', () => {
         setDuration(player.duration());
         
         // Load audio tracks
         const audioTracks = player.audioTracks();
-        if (audioTracks) {
-          const tracksList = [];
-          for (let i = 0; i < Object.keys(audioTracks).length; i++) {
-            const track = audioTracks[i];
-            if (track) {
-              tracksList.push({
+        if (audioTracks && typeof audioTracks === 'object') {
+          const tracksList = Object.keys(audioTracks)
+            .filter(key => !isNaN(Number(key)))
+            .map(key => {
+              const track = audioTracks[key as any];
+              return {
                 id: track.id,
                 language: track.language || 'unknown',
-                label: track.label || `Audio Track ${track.id}`
+                label: track.label || `Audio Track ${track.id}`,
+              };
             });
-            }
-          }
           setAudioTracks(tracksList);
           if (tracksList.length > 0) setCurrentAudioTrack(tracksList[0].id);
         }
 
-        // Load text tracks
+        // Load text tracks (captions/subtitles)
         const textTracks = player.textTracks();
         if (textTracks) {
           const tracksList = [];
-          for (let i = 0; i < Object.keys(textTracks).length; i++) {
+          let i = 0;
+          while (textTracks[i]) {
             const track = textTracks[i];
-            if (track) {
             tracksList.push({
               id: track.language || String(i),
               language: track.language || 'unknown',
-                label: track.label || `Subtitles (${track.language || 'unknown'})`
+              label: track.label || `Subtitles (${track.language || 'unknown'})`,
             });
+            i++;
             }
-          }
+          if (tracksList.length > 0) {
             setTextTracks(tracksList);
+          }
         }
       });
 
       player.on('timeupdate', () => {
-        if (!seeking) {
-          setPlayed(player.currentTime() / player.duration());
-        }
+        if (!seeking) setPlayed(player.currentTime() / player.duration());
       });
 
       player.on('waiting', () => setBuffering(true));
       player.on('canplay', () => setBuffering(false));
-      player.on('error', (e) => {
-        console.error('Video player error:', e);
+      player.on('error', (e: any) => {
+        setError(e);
         if (onError) onError(e);
       });
 
@@ -640,44 +290,265 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
 
     return () => {
       if (playerRef.current) {
-        unlockScreenOrientation();
+        unlockOrientation();
         playerRef.current.dispose();
         playerRef.current = null;
       }
     };
-  }, [url, onError, seeking, autoPlay, isMobile]);
+  }, [url, onError, autoFullscreen]);
 
-  // Add CSS variables for aspect ratio control
+  // Handle text track (captions) changes
+  const handleTextTrackChange = (trackId: string) => {
+    if (playerRef.current) {
+      const tracks = playerRef.current.textTracks();
+      Array.from(tracks).forEach((track: any) => {
+        track.mode = track.language === trackId ? 'showing' : 'hidden';
+      });
+      setCurrentTextTrack(trackId);
+    }
+  };
+
+  // Keyboard controls
   useEffect(() => {
-    if (!containerRef.current) return;
-    
-    const container = containerRef.current;
-    const aspectRatioMap = {
-      'auto': '16/9',
-      '16:9': '16/9',
-      '4:3': '4/3',
-      'fill': '16/9',
-      'zoom': '16/9'
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Only handle keyboard shortcuts if the video player is focused or if no input element is focused
+      if (document.activeElement?.tagName === 'INPUT' || 
+          document.activeElement?.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case ' ':
+          e.preventDefault();
+          handlePlayPause();
+          break;
+        case 'arrowleft':
+          e.preventDefault();
+          if (e.shiftKey) {
+            handleSkip(-30); // Shift + Left Arrow = Skip back 30 seconds
+          } else {
+            handleSkip(-10); // Left Arrow = Skip back 10 seconds
+          }
+          setShowControls(true);
+          break;
+        case 'arrowright':
+          e.preventDefault();
+          if (e.shiftKey) {
+            handleSkip(30); // Shift + Right Arrow = Skip forward 30 seconds
+          } else {
+            handleSkip(10); // Right Arrow = Skip forward 10 seconds
+          }
+          setShowControls(true);
+          break;
+        case 'j':
+          e.preventDefault();
+          handleSkip(-10); // Alternative backward skip
+          setShowControls(true);
+          break;
+        case 'l':
+          e.preventDefault();
+          handleSkip(10); // Alternative forward skip
+          setShowControls(true);
+          break;
+        case 'f':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'm':
+          e.preventDefault();
+          handleMuteToggle();
+          break;
+        case 't':
+          e.preventDefault();
+          setShowTheater(v => !v);
+          break;
+        case 'k':
+          e.preventDefault();
+          handlePlayPause(); // Alternative play/pause key
+          break;
+      }
     };
-    
-    container.style.setProperty('--video-aspect-ratio', aspectRatioMap[currentAspectRatio]);
-  }, [currentAspectRatio]);
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, []);
 
-  // Helper to get wrapper styles based on aspect ratio
-  const getWrapperStyle = () => ({
-    position: 'relative' as const,
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'black',
-    overflow: 'hidden',
-  });
+  const handlePlayPause = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused || video.ended) {
+      video.play();
+    } else {
+      video.pause();
+    }
+    setShowControls(true);
+  };
+  const handleSkipBackward = () => {
+    if (playerRef.current) {
+      const newTime = Math.max(playerRef.current.currentTime() - 10, 0);
+      playerRef.current.currentTime(newTime);
+      setShowControls(true);
+    }
+  };
+  const handleSkipForward = () => {
+    if (playerRef.current) {
+      const newTime = Math.min(playerRef.current.currentTime() + 10, duration);
+      playerRef.current.currentTime(newTime);
+      setShowControls(true);
+    }
+  };
+  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (playerRef.current) {
+      const value = parseFloat(e.target.value);
+      const newTime = value * duration;
+      playerRef.current.currentTime(newTime);
+      setPlayed(value);
+    }
+  };
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (playerRef.current) {
+      const newVolume = parseFloat(e.target.value);
+      const actualVolume = volumeBoost ? newVolume * 2 : newVolume;
+      playerRef.current.volume(actualVolume);
+      setVolume(newVolume);
+      if (newVolume === 0) {
+        setMuted(true);
+        playerRef.current.muted(true);
+      } else if (muted) {
+        setMuted(false);
+        playerRef.current.muted(false);
+      }
+    }
+  };
+  const handleMuteToggle = () => {
+    if (playerRef.current) {
+      const newMuted = !muted;
+      playerRef.current.muted(newMuted);
+      setMuted(newMuted);
+    }
+  };
 
-  // Returns the style for the aspect-ratio box
+  const handleVolumeBoost = () => {
+    if (playerRef.current) {
+      const newBoostState = !volumeBoost;
+      setVolumeBoost(newBoostState);
+      // Apply a 2x multiplier when boosted
+      const baseVolume = volume;
+      const boostedVolume = newBoostState ? baseVolume * 2 : baseVolume;
+      playerRef.current.volume(boostedVolume);
+    }
+  };
+  const toggleFullscreen = () => {
+    const videoContainer = containerRef.current;
+    if (!videoContainer) return;
+    if (!fullscreen) {
+      if (videoContainer.requestFullscreen) {
+        videoContainer.requestFullscreen();
+      } else if ((videoContainer as any).webkitRequestFullscreen) {
+        (videoContainer as any).webkitRequestFullscreen();
+      }
+      // Mobile: try to lock orientation to landscape
+      const orientation: any = window.screen.orientation;
+      if (orientation && typeof orientation.lock === 'function') {
+        if (window.innerWidth < 768) {
+          orientation.lock('landscape').catch(() => {});
+        }
+      }
+      setFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if ((document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen();
+      }
+      // Unlock orientation if possible
+      const orientation: any = window.screen.orientation;
+      if (orientation && typeof orientation.unlock === 'function') {
+        orientation.unlock();
+      }
+      setFullscreen(false);
+    }
+  };
+  const handleAudioTrackChange = (trackId: string) => {
+    if (playerRef.current) {
+      const tracks = playerRef.current.audioTracks();
+      if (tracks) {
+        Object.keys(tracks)
+          .filter(key => !isNaN(Number(key)))
+          .forEach(key => {
+            const track = tracks[key as any];
+            track.enabled = track.id === trackId;
+          });
+        setCurrentAudioTrack(trackId);
+      }
+    }
+  };
+  const handlePlaybackRateChange = (rate: number) => {
+    if (playerRef.current) {
+      playerRef.current.playbackRate(rate);
+      setPlaybackRate(rate);
+    }
+  };
+  const formatTime = (seconds: number) => {
+    const date = new Date(seconds * 1000);
+    const hh = date.getUTCHours();
+    const mm = date.getUTCMinutes();
+    const ss = date.getUTCSeconds().toString().padStart(2, '0');
+    if (hh) return `${hh}:${mm.toString().padStart(2, '0')}:${ss}`;
+    return `${mm}:${ss}`;
+  };
+
+  const toggleAspectRatioMenu = () => {
+    setShowAspectRatioMenu(prev => !prev);
+  };
+
+  const handleAspectRatioChange = (ratio: typeof aspectRatio) => {
+    setAspectRatio(ratio);
+    setShowAspectRatioMenu(false);
+    if (playerRef.current) {
+      const player = playerRef.current;
+      player.trigger('resize');
+    }
+  };
+
+  // Add this function to handle video playback
+  const togglePlayPause = () => {
+    if (playerRef.current) {
+      if (playing) {
+        playerRef.current.pause();
+      } else {
+        playerRef.current.play();
+      }
+      setPlaying(!playing);
+    }
+  };
+
+  // Add this function to handle skip
+  const handleSkip = (seconds: number) => {
+    if (playerRef.current) {
+      const newTime = playerRef.current.currentTime() + seconds;
+      playerRef.current.currentTime(Math.max(0, Math.min(newTime, duration)));
+    }
+  };
+
+  // Add PiP functionality
+  const togglePiP = async () => {
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture();
+      setShowPiP(false);
+    } else if (videoRef.current) {
+      try {
+        await videoRef.current.requestPictureInPicture();
+        setShowPiP(true);
+      } catch (err) {
+        console.error("PiP failed:", err);
+      }
+    }
+  };
+
+  // Add: Helper to get wrapper styles based on aspect ratio
   const getAspectBoxStyle = () => {
-    if (currentAspectRatio === '16:9') {
+    switch (aspectRatio) {
+      case '16:9':
       return {
         aspectRatio: '16/9',
         width: 'min(90vw, 90vh * 16 / 9)',
@@ -688,8 +559,7 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
         background: 'black',
         margin: 'auto',
       };
-    }
-    if (currentAspectRatio === '4:3') {
+      case '4:3':
       return {
         aspectRatio: '4/3',
         width: 'min(80vw, 80vh * 4 / 3)',
@@ -700,321 +570,381 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
         background: 'black',
         margin: 'auto',
       };
-    }
+      case 'fill':
     return {
       width: '100%',
       height: '100%',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-    };
-  };
-
-  // Returns the style for the video element
-  const getVideoStyle = () => {
-    switch (currentAspectRatio) {
-      case 'fill':
-        return {
-          width: '100%',
-          height: '100%',
-          objectFit: 'fill' as const,
+          background: 'black',
         };
       case 'zoom':
         return {
           width: '100%',
           height: '100%',
-          objectFit: 'cover' as const,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'black',
+          overflow: 'hidden',
+          position: 'relative' as const,
         };
-      case '16:9':
-      case '4:3':
+      default:
         return {
           width: '100%',
           height: '100%',
-          objectFit: 'contain' as const,
-        };
-      default: // auto
-        return {
-          width: '100%',
-          height: '100%',
-          objectFit: 'contain' as const,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'black',
         };
       }
   };
 
-  // Add this with the other event handlers
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pos = (e.clientX - rect.left) / rect.width;
-    if (videoRef.current) {
-      const time = pos * duration;
-      videoRef.current.currentTime = time;
-      setPlayed(pos);
-    }
-  };
-
-  const handleContainerMouseMove = () => {
-    setShowControls(true);
-    setMouseIdle(false);
-    if (mouseIdleTimerRef.current) {
-      clearTimeout(mouseIdleTimerRef.current);
-      }
-    mouseIdleTimerRef.current = setTimeout(() => {
-      if (playing) {
-        setMouseIdle(true);
-        setShowControls(false);
-    }
-    }, 3000);
-  };
-
-  const handleContainerMouseLeave = () => {
-    setShowControls(false);
-    setMouseIdle(true);
-    if (mouseIdleTimerRef.current) {
-      clearTimeout(mouseIdleTimerRef.current);
-    }
-  };
-
-  // Request fullscreen and lock orientation on mobile if autoFullscreen is true
+  // Add this useEffect after playerRef is set up
   useEffect(() => {
-    if (isMobile && autoFullscreen && containerRef.current) {
-      const requestFullscreen = async () => {
-        try {
-          // Request fullscreen
-          if (containerRef.current.requestFullscreen) {
-            await containerRef.current.requestFullscreen();
-          } else if ((containerRef.current as any).webkitRequestFullscreen) {
-            await (containerRef.current as any).webkitRequestFullscreen();
-          }
-          // Lock orientation
-          if ('orientation' in screen) {
-            await (screen.orientation as any).lock('landscape');
-          }
-        } catch (err) {
-          console.warn('Fullscreen/orientation lock failed:', err);
-        }
-      };
-      requestFullscreen();
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handlePlay = () => setPlaying(true);
+    const handlePause = () => setPlaying(false);
+
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+
+    return () => {
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+    };
+  }, []);
+
+  // Update mouse idle detection for auto-hide
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    let timer: any;
+
+    const show = () => {
+    setShowControls(true);
+      if (timer) clearTimeout(timer);
+      if (playing) {
+        timer = setTimeout(() => setShowControls(false), 2500);
+      }
+  };
+
+    container.addEventListener('mousemove', show);
+    container.addEventListener('touchstart', show);
+
+    // Hide controls after timeout if playing
+    if (playing) {
+      timer = setTimeout(() => setShowControls(false), 2500);
     }
-  }, [isMobile, autoFullscreen]);
+
+    return () => {
+      container.removeEventListener('mousemove', show);
+      container.removeEventListener('touchstart', show);
+      if (timer) clearTimeout(timer);
+    };
+  }, [playing]);
+
+  // Ensure controls are visible on pause or ended
+  useEffect(() => {
+    if (!playing) setShowControls(true);
+  }, [playing]);
 
   return (
     <div
       ref={containerRef}
       className={cn(
-        'relative bg-black',
-        'group/video touch-none select-none overflow-hidden',
-        'w-full h-full',
-        'max-w-full',
-        'flex flex-col justify-center items-center'
+        'relative w-full',
+        showTheater ? 'aspect-[21/9] max-w-6xl mx-auto my-8' : 'aspect-video',
+        'overflow-hidden bg-black rounded-lg',
+        fullscreen && 'z-50',
+        'group/video-player',
+        'sm:rounded-lg',
+        'h-[220px] xs:h-[240px] sm:h-auto',
       )}
-      onMouseMove={handleContainerMouseMove}
-      onMouseLeave={handleContainerMouseLeave}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      style={getWrapperStyle()}
+      style={{ touchAction: 'manipulation' }}
     >
+      {/* Video container with proper centering */}
       <div 
         className={cn(
-          'absolute inset-0 flex items-center justify-center',
-          'w-full h-full',
-          'overflow-hidden'
+          "absolute inset-0 flex items-center justify-center bg-black",
+          aspectRatio === 'zoom' && 'overflow-hidden'
         )}
-        style={{ ...getAspectBoxStyle(), maxWidth: '100vw', maxHeight: '100vh' }}
+        style={getAspectBoxStyle()}
+      >
+        <div 
+          data-vjs-player 
+          className={cn(
+            "w-full h-full",
+            aspectRatio === 'zoom' && 'overflow-hidden'
+          )}
       >
         <video
           ref={videoRef}
           className={cn(
-            'video-js vjs-default-skin',
-            'transition-all duration-300 ease-in-out',
-            'w-full h-full',
-            'object-contain',
-            'bg-black',
-            'max-h-full',
-            'max-w-full'
+              "video-js vjs-big-play-centered w-full h-full",
+              "vjs-no-flex",
+              aspectRatio === 'zoom' && 'object-cover'
           )}
-          style={{ ...getVideoStyle(), maxWidth: '100vw', maxHeight: '100vh' }}
           playsInline
-          webkit-playsinline="true"
-          x5-playsinline="true"
-          x5-video-player-type="h5"
-          x5-video-player-fullscreen="true"
-          x5-video-orientation="landscape"
-        >
-          <source src={url} type="video/mp4" />
-        </video>
+          autoPlay
+          style={{
+            maxHeight: aspectRatio === 'zoom' ? 'none' : '100vh',
+            objectFit:
+              aspectRatio === 'fill' ? 'fill' :
+              aspectRatio === 'zoom' ? 'cover' :
+              'contain',
+            width: aspectRatio === 'zoom' ? '100%' : undefined,
+            height: aspectRatio === 'zoom' ? '100%' : undefined,
+            transform: aspectRatio === 'zoom' ? 'scale(1.01)' : undefined,
+          }}
+        />
+        </div>
       </div>
 
-      {/* Overlay Controls - Always visible on mobile */}
+      {/* Center play/pause button */}
       <div
         className={cn(
-          'absolute inset-0 flex flex-col items-center justify-center',
-          'transition-opacity duration-200',
-          'touch-auto',
-          !showControls && 'opacity-0 pointer-events-none'
+          "absolute inset-0 flex items-center justify-center",
+          "transition-all duration-300",
+          "opacity-0",
+          showControls ? "opacity-100" : "opacity-0",
+          "pointer-events-none"
         )}
       >
-        {/* Center Play/Pause Button with Skip Buttons */}
-        <div
-          className={cn(
-            "absolute z-20 flex items-center gap-6",
-            !showControls && "opacity-0 pointer-events-none"
-          )}
-        >
+        <div className="flex items-center gap-4 pointer-events-auto">
           <button
-            onClick={handleSkipBackward}
-            className="bg-black/60 rounded-full p-4 hover:bg-black/80 transition-all duration-200 flex items-center justify-center"
-            aria-label="Skip Back 10 seconds"
+            onClick={() => handleSkip(-10)}
+          className={cn(
+              "p-3 rounded-full bg-black/40 hover:bg-black/60",
+              "transition-all duration-300 transform",
+              "hover:scale-110 active:scale-95",
+              !showControls && "opacity-0 scale-75",
+              showControls && "opacity-100 scale-100"
+            )}
+            aria-label="Skip backward 10 seconds"
           >
             <SkipBack className="w-8 h-8 text-white" />
-            <span className="sr-only">Skip Back 10 seconds</span>
           </button>
+
           <button
-            onClick={handlePlayPause}
+            onClick={togglePlayPause}
             className={cn(
-              'bg-black/60 rounded-full',
-              'p-4 md:p-6',
-              'hover:bg-black/80 transition-all duration-200',
-              'flex items-center justify-center',
-              'transform translate-y-0'
+              "p-4 rounded-full bg-black/40 hover:bg-black/60",
+              "transition-all duration-300 transform",
+              "hover:scale-110 active:scale-95",
+              !showControls && "opacity-0 scale-75",
+              showControls && "opacity-100 scale-100",
+              buffering && "animate-pulse"
             )}
-            aria-label={playing ? 'Pause' : 'Play'}
+            aria-label={playing ? "Pause" : "Play"}
           >
-            {playing ? (
-              <Pause className="w-8 h-8 md:w-12 md:h-12 text-white" />
+            {buffering ? (
+              <Loader2 className="w-12 h-12 text-white animate-spin" />
+            ) : playing ? (
+              <Pause className="w-12 h-12 text-white" />
             ) : (
-              <Play className="w-8 h-8 md:w-12 md:h-12 text-white" />
+              <Play className="w-12 h-12 text-white" />
             )}
           </button>
+
           <button
-            onClick={handleSkipForward}
-            className="bg-black/60 rounded-full p-4 hover:bg-black/80 transition-all duration-200 flex items-center justify-center"
-            aria-label="Skip Forward 10 seconds"
+            onClick={() => handleSkip(10)}
+            className={cn(
+              "p-3 rounded-full bg-black/40 hover:bg-black/60",
+              "transition-all duration-300 transform",
+              "hover:scale-110 active:scale-95",
+              !showControls && "opacity-0 scale-75",
+              showControls && "opacity-100 scale-100"
+            )}
+            aria-label="Skip forward 10 seconds"
           >
             <SkipForward className="w-8 h-8 text-white" />
-            <span className="sr-only">Skip Forward 10 seconds</span>
           </button>
         </div>
-
-        {/* Bottom Controls - Increased touch targets for mobile */}
-        <div 
-          className={cn(
-            'absolute bottom-0 left-0 right-0',
-            'bg-gradient-to-t from-black/90 via-black/60 to-transparent',
-            'transition-opacity duration-200',
-            !showControls && 'opacity-0 pointer-events-none',
-            'px-2 py-2 md:px-4 md:py-1' // Increased padding for mobile
-          )}
-        >
-          {/* Progress Bar - Made taller for mobile */}
-          <div className="px-2 md:px-4 py-1">
-            <div
-              ref={progressBarRef}
-              className="relative w-full h-3 md:h-2 bg-white/30 cursor-pointer group/progress rounded-full"
-              onClick={handleProgressClick}
-            >
-              <div
-                className="absolute left-0 top-0 h-full bg-red-600 rounded-full"
-              style={{ width: `${played * 100}%` }}
-            />
-            {hoverTime !== null && (
-              <div 
-                  className="absolute bottom-6 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded"
-                  style={{ left: `${(hoverTime / duration) * 100}%` }}
-              >
-                {formatTime(hoverTime)}
-              </div>
-            )}
-          </div>
         </div>
 
-          {/* Control Bar - Increased spacing for mobile */}
-          <div className="px-2 md:px-4 py-3 md:py-2 flex flex-col md:flex-row items-center gap-3 md:gap-4">
-            {/* Left Controls */}
-            <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
-              <div className="flex items-center gap-2 group/volume">
+      {/* Bottom controls bar */}
+        <div 
+          className={cn(
+          'absolute inset-x-0 bottom-0 z-20',
+          'transition-all duration-500 ease-in-out transform',
+          showControls ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0',
+          'pointer-events-none bg-black/90',
+          )}
+        >
+        {/* Progress bar */}
+            <div
+              ref={progressBarRef}
+              className="relative w-full h-[6px] group/progress pointer-events-auto hover:h-[8px] transition-all"
+            >
+              <div className="absolute inset-0 cursor-pointer bg-white/20 rounded-full overflow-hidden">
+              <div
+                  className="absolute inset-y-0 left-0 bg-[#E50914] transition-all duration-200"
+              style={{ width: `${played * 100}%` }}
+            />
+              </div>
+              <div 
+                className="absolute inset-y-0 left-0 bg-white/40 rounded-full transition-all duration-200 opacity-0 group-hover/progress:opacity-100"
+                style={{ 
+                  width: `${played * 100}%`,
+                  transform: 'scaleX(1.02)',
+                  transformOrigin: 'left'
+                }}
+              />
+              <div 
+                className="absolute h-4 w-4 bg-[#E50914] rounded-full -mt-[4px] transition-all duration-200 opacity-0 group-hover/progress:opacity-100 hover:scale-110"
+                style={{ 
+                  left: `${played * 100}%`,
+                  transform: 'translateX(-50%)'
+                }}
+              />
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.001}
+                value={played}
+                onChange={handleSeekChange}
+                onMouseDown={() => setSeeking(true)}
+                onMouseUp={() => setSeeking(false)}
+                className="absolute inset-0 w-full opacity-0 cursor-pointer"
+                aria-label="Seek"
+              />
+        </div>
+
+        {/* Controls bar */}
+        <div className="w-full px-2 sm:px-4 py-2 sm:py-1 pointer-events-auto flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-0">
+          {/* Left controls */}
+                              <div className="flex items-center gap-4">
+            <div className="flex items-center group/volume gap-1 sm:gap-2">
                 <button
+                className="p-1 sm:p-2 hover:bg-white/10 rounded-l-md transition-colors"
                   onClick={handleMuteToggle}
-                  className="p-2 hover:bg-white/10 rounded-full transition"
+                aria-label={muted ? 'Unmute' : 'Mute'}
                 >
-                  {muted || volume === 0 ? (
+                {muted ? (
                     <VolumeX className="w-5 h-5 text-white" />
                   ) : (
                     <Volume2 className="w-5 h-5 text-white" />
                   )}
                 </button>
+              
+                            <div className="relative w-16 sm:w-24 px-1 sm:px-3 py-1 sm:py-2 group/volume-slider">
                     <input
                       type="range"
                       min={0}
                       max={1}
-                  step={0.01}
-                  value={displayVolume}
+                      step={0.01}
+                      value={volume}
                       onChange={handleVolumeChange}
-                  className="w-16 md:w-20 accent-white opacity-100 md:opacity-0 group-hover/volume:opacity-100 transition-opacity"
+                      className={cn(
+                        "w-[0px] sm:w-[60px] group-hover/volume:w-[60px]",
+                        "h-[4px] appearance-none cursor-pointer",
+                        "opacity-0 group-hover/volume:opacity-100 transition-all duration-200",
+                        "[&::-webkit-slider-runnable-track]:h-[4px] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/20",
+                        "[&::-moz-range-track]:h-[4px] [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-white/20",
+                        "[&::-ms-track]:h-[4px] [&::-ms-track]:rounded-full [&::-ms-track]:bg-white/20",
+                        "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:active:scale-95 [&::-webkit-slider-thumb]:-mt-[4px]",
+                        "[&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:shadow-sm [&::-moz-range-thumb]:transition-all [&::-moz-range-thumb]:hover:scale-110 [&::-moz-range-thumb]:active:scale-95",
+                        "[&::-ms-thumb]:appearance-none [&::-ms-thumb]:w-3 [&::-ms-thumb]:h-3 [&::-ms-thumb]:rounded-full [&::-ms-thumb]:bg-white [&::-ms-thumb]:border-none [&::-ms-thumb]:shadow-sm [&::-ms-thumb]:transition-all [&::-ms-thumb]:hover:scale-110 [&::-ms-thumb]:active:scale-95",
+                        "focus:outline-none active:outline-none"
+                      )}
+                      aria-label="Volume"
+                      style={{
+                        background: `linear-gradient(to right, white ${volume * 100}%, rgba(255,255,255,0.2) ${volume * 100}%)`,
+                        width: '60px',
+                        transition: 'width 0.2s ease-in-out'
+                      }}
                 />
+              </div>
+
                 <button
-                  onClick={() => setVolumeBoost(prev => !prev)}
                   className={cn(
-                    'p-2 rounded transition',
-                    volumeBoost ? 'bg-yellow-400 text-black' : 'bg-white/10 text-white',
-                    'hover:bg-yellow-300 hover:text-black'
+                  "p-1 sm:p-2 hover:bg-white/10 rounded-r-md transition-colors border-l border-white/10",
+                  volumeBoost && "bg-yellow-400/90 hover:bg-yellow-400"
                   )}
-                  title={volumeBoost ? 'Volume Boost Active' : 'Volume Boost'}
+                onClick={handleVolumeBoost}
+                aria-label="Volume Boost"
+                title="Volume Boost (2x)"
                 >
-                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-                    <path 
-                      d="M5 9v6h4l5 5V4l-5 5H5zm13.5 3a6.5 6.5 0 01-6.5 6.5" 
-                      stroke="currentColor" 
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={volumeBoost ? "black" : "currentColor"}
                       strokeWidth="2" 
                       strokeLinecap="round" 
                       strokeLinejoin="round"
-                    />
+                  className="w-5 h-5"
+                >
+                  <path d="M15.5 8.5c.82.82 1.5 2.07 1.5 3.5s-.68 2.68-1.5 3.5" />
+                  <path d="M18.5 5.5c2.12 2.12 3.5 5.07 3.5 8.5s-1.38 6.38-3.5 8.5" />
+                  <path d="M11 3 6 8H3c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h3l5 5z" />
                   </svg>
                 </button>
               </div>
-
-              <div className="text-white text-xs md:text-sm font-medium">
-                {formatTime(played * duration)} / {formatTime(duration)}
-              </div>
+            <div className="text-white text-xs sm:text-sm font-medium space-x-1">
+              <span>{formatTime(duration * played)}</span>
+              <span>/</span>
+              <span>{formatTime(duration)}</span>
             </div>
 
-            {/* Title */}
-            <div className="flex-1 text-white text-xs md:text-sm font-medium truncate text-center md:text-left">
-              {title}
+            {title && (
+              <span className="text-white text-xs sm:text-sm font-medium ml-2">{title}</span>
+            )}
             </div>
 
-            {/* Right Controls */}
-            <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end mt-1 md:mt-0">
+          {/* Right controls */}
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+            {/* Subtitles button */}
               <button
-                onClick={() => setCurrentTextTrack(currentTextTrack ? '' : (textTracks[0]?.id || ''))}
                 className={cn(
-                  'p-2 hover:bg-white/10 rounded-full transition',
-                  currentTextTrack && 'text-blue-400'
+                "p-1 sm:p-2 hover:bg-white/10 rounded-full transition-colors",
+                currentTextTrack && "text-blue-400"
                 )}
+              onClick={() => handleTextTrackChange(currentTextTrack ? '' : (textTracks[0]?.id || ''))}
+              aria-label="Toggle Subtitles"
               >
                 <Subtitles className="w-5 h-5 text-white" />
               </button>
 
+            {/* Aspect Ratio button and menu */}
               <div className="relative">
                 <button
-                  onClick={() => setShowAspectRatio(!showAspectRatio)}
-                  className="p-2 hover:bg-white/10 rounded-full transition"
+                className={cn(
+                  "p-1 sm:p-2 hover:bg-white/10 rounded-full transition-colors",
+                  showAspectRatioMenu && "bg-white/10"
+                )}
+                onClick={toggleAspectRatioMenu}
+                aria-label="Aspect Ratio"
                 >
-                  <Expand className="w-5 h-5 text-white" />
+                <SlidersHorizontal className="w-5 h-5 text-white" />
                 </button>
-                {showAspectRatio && (
-                  <div className="absolute bottom-full right-0 mb-2 w-40 md:w-48 bg-black/90 rounded-lg overflow-hidden z-30">
-                    <div className="p-2">
-                      <div className="text-white text-xs md:text-sm font-medium mb-2">Aspect Ratio</div>
-                      {aspectRatios.map((ratio) => (
+              {showAspectRatioMenu && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-auto min-w-[160px]">
+                  <div className="bg-black/90 backdrop-blur-sm rounded-lg p-2">
+                    <div className="text-white/60 text-xs font-medium px-3 py-1">
+                      Aspect Ratio
+                    </div>
+                    {(['auto', '16:9', '4:3', 'fill', 'zoom'] as const).map(ratio => (
                         <button
-                          key={ratio.value}
-                          onClick={() => handleAspectRatioChange(ratio.value)}
+                        key={ratio}
                           className={cn(
-                            'w-full text-left px-3 py-1 text-xs md:text-sm rounded',
-                            currentAspectRatio === ratio.value ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10'
-                          )}
-                        >
-                          {ratio.label}
+                          "w-full px-3 py-2 text-left text-xs hover:bg-white/10 transition-colors flex items-center justify-between",
+                          aspectRatio === ratio ? "text-[#E50914]" : "text-white"
+                        )}
+                        onClick={() => { handleAspectRatioChange(ratio); setShowAspectRatioMenu(false); }}
+                      >
+                        <span>{
+                          ratio === 'auto' ? 'Auto' :
+                          ratio === 'fill' ? 'Fill Screen' :
+                          ratio === 'zoom' ? 'Zoom' :
+                          ratio
+                        }</span>
+                        {aspectRatio === ratio && <CheckCircle2 className="w-4 h-4" />}
                         </button>
                       ))}
                     </div>
@@ -1022,27 +952,35 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
                 )}
               </div>
 
+            {/* Settings button for playback speed and menu */}
               <div className="relative">
                 <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="p-2 hover:bg-white/10 rounded-full transition"
+                className={cn(
+                  "p-1 sm:p-2 hover:bg-white/10 rounded-full transition-colors",
+                  showSettings && "bg-white/10"
+                )}
+                onClick={() => setShowSettings((prev) => !prev)}
+                aria-label="Playback Speed"
                 >
                   <Settings className="w-5 h-5 text-white" />
                 </button>
                 {showSettings && (
-                  <div className="absolute bottom-full right-0 mb-2 w-40 md:w-48 bg-black/90 rounded-lg overflow-hidden z-30">
-                    <div className="p-2">
-                      <div className="text-white text-xs md:text-sm font-medium mb-2">Playback Speed</div>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-auto min-w-[160px]">
+                  <div className="bg-black/90 backdrop-blur-sm rounded-lg p-2">
+                    <div className="text-white/60 text-xs font-medium px-3 py-1">
+                      Playback Speed
+                    </div>
                       {playbackSpeeds.map((speed) => (
                           <button
                             key={speed}
-                          onClick={() => handlePlaybackRateChange(speed)}
                             className={cn(
-                            'w-full text-left px-3 py-1 text-xs md:text-sm rounded',
-                            playbackRate === speed ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10'
+                          "w-full px-3 py-2 text-left text-xs hover:bg-white/10 transition-colors flex items-center justify-between",
+                          playbackRate === speed ? "text-[#E50914]" : "text-white"
                           )}
+                        onClick={() => { handlePlaybackRateChange(speed); setShowSettings(false); }}
                           >
-                            {speed}x
+                        <span>{speed}x</span>
+                        {playbackRate === speed && <CheckCircle2 className="w-4 h-4" />}
                           </button>
                         ))}
                       </div>
@@ -1051,8 +989,21 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
               </div>
 
               <button
+              className="p-1 sm:p-2 hover:bg-white/10 rounded-full transition-colors"
+              onClick={() => setShowTheater(prev => !prev)}
+              aria-label="Theater mode"
+            >
+              {showTheater ? (
+                <Minimize className="w-5 h-5 text-white" />
+              ) : (
+                null
+              )}
+            </button>
+
+            <button
+              className="p-1 sm:p-2 hover:bg-white/10 rounded-full transition-colors"
                 onClick={toggleFullscreen}
-                className="p-2 hover:bg-white/10 rounded-full transition"
+              aria-label="Toggle fullscreen"
               >
                 {fullscreen ? (
                   <Minimize className="w-5 h-5 text-white" />
@@ -1060,24 +1011,28 @@ export function VideoPlayer({ url, title, onError, autoPlay = false, autoFullscr
                   <Maximize className="w-5 h-5 text-white" />
                 )}
               </button>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Buffering Indicator */}
+      {/* Loading spinner */}
       {buffering && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-          <Loader2 className="w-12 h-12 animate-spin text-white" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="rounded-full p-3 sm:p-4">
+            <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-[#E50914] animate-spin" />
+          </div>
         </div>
       )}
 
-      {/* Error Display */}
+      {/* Error overlay */}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-          <div className="text-white text-center p-4">
-            <AlertTriangle className="w-12 h-12 mx-auto mb-2" />
-            <p>An error occurred while playing the video.</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+          <div className="text-center">
+            <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 text-[#E50914] mx-auto mb-4" />
+            <h3 className="text-white text-base sm:text-lg font-bold mb-2">Playback Error</h3>
+            <p className="text-white/70 text-xs sm:text-sm">
+              {error.message || 'Failed to play video'}
+            </p>
           </div>
         </div>
       )}
