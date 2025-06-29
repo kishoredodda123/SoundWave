@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, forwardRef, ForwardedRef } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 import {
@@ -25,7 +25,7 @@ import {
 import { cn } from '@/lib/utils';
 
 interface VideoPlayerProps {
-  url: string;
+  src: string;
   onError?: (error: any) => void;
   title?: string;
   autoPlay?: boolean;
@@ -46,7 +46,7 @@ interface TextTrack {
 
 const playbackSpeeds = [0.5, 1, 1.25, 1.5, 2];
 
-export function VideoPlayer({ url, onError, title, autoPlay, autoFullscreen }: VideoPlayerProps) {
+export const VideoPlayer = forwardRef(({ src, onError, title, autoPlay, autoFullscreen }: VideoPlayerProps, ref: ForwardedRef<any>) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -201,6 +201,13 @@ export function VideoPlayer({ url, onError, title, autoPlay, autoFullscreen }: V
         },
       });
 
+      // Expose player instance through ref
+      if (typeof ref === 'function') {
+        ref({ player });
+      } else if (ref) {
+        ref.current = { player };
+      }
+
       // Handle orientation and fullscreen when video starts playing
       player.on('play', () => {
         if (autoFullscreen) {
@@ -232,7 +239,7 @@ export function VideoPlayer({ url, onError, title, autoPlay, autoFullscreen }: V
         src: 'path/to/captions.vtt', // Replace with actual captions file
       }, false);
 
-      player.src({ src: url, type: 'video/mp4' });
+      player.src({ src, type: 'video/mp4' });
 
       player.on('loadedmetadata', () => {
         setDuration(player.duration());
@@ -293,9 +300,16 @@ export function VideoPlayer({ url, onError, title, autoPlay, autoFullscreen }: V
         unlockOrientation();
         playerRef.current.dispose();
         playerRef.current = null;
+        
+        // Clean up ref
+        if (typeof ref === 'function') {
+          ref(null);
+        } else if (ref) {
+          ref.current = null;
+        }
       }
     };
-  }, [url, onError, autoFullscreen]);
+  }, [src, onError, autoFullscreen, ref]);
 
   // Handle text track (captions) changes
   const handleTextTrackChange = (trackId: string) => {
@@ -1038,4 +1052,4 @@ export function VideoPlayer({ url, onError, title, autoPlay, autoFullscreen }: V
       )}
     </div>
   );
-}
+});

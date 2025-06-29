@@ -130,7 +130,12 @@ const router = createBrowserRouter([
 ]);
 
 function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <Toaster position="top-center" richColors />
+      <RouterProvider router={router} />
+    </>
+  );
 }
 
 export default App;
