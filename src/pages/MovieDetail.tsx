@@ -96,7 +96,7 @@ export default function MovieDetail() {
       setPlaybackError(false);
 
       const res = await axios.post<RefreshLinkResponse>(
-        `http://localhost:8000/api/refresh-link/${movie.id}`,
+        `https://soundwave-46no.onrender.com/api/refresh-link/${movie.id}`,
         null,
         { params: { quality: selectedQuality } }
       );
